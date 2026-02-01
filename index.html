@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gestor Financeiro V12</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <div class="header-container">
+        <div class="top-bar">
+            <div class="app-brand">Minhas Faturas</div>
+            
+            <select id="view-month" class="view-selector" onchange="changeViewMonth(this.value)">
+                </select>
+        </div>
+
+        <div class="income-container">
+            <div class="income-label" id="income-label-text">Renda Mensal (Jan)</div>
+            <div class="income-wrapper">
+                <span style="font-size:20px; font-weight:600; color:#8E8E93;">R$</span>
+                <input type="text" id="monthly-income" inputmode="numeric" placeholder="0,00" oninput="formatAndSetIncome(this)">
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="card">
+            <div class="card-label">Gastos Brutos</div>
+            <div class="card-value" id="month-gross">R$ 0,00</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Abatimentos</div>
+            <div class="card-value val-refund" id="month-refunds">R$ 0,00</div>
+        </div>
+    </div>
+
+    <div class="highlight-card">
+        <div>
+            <div class="label">A Pagar (Líquido)</div>
+            <div class="value" id="month-net">R$ 0,00</div>
+        </div>
+        <div style="text-align: right;">
+            <div class="label" style="opacity: 0.7;">Sobra Salário</div>
+            <div class="value" id="month-leftover" style="font-size: 20px; color: #4CD964;">R$ 0,00</div>
+        </div>
+    </div>
+
+    <div class="chart-box">
+        <canvas id="expenseChart"></canvas>
+    </div>
+
+    <div class="list-title">Extrato da Fatura</div>
+    <div class="list-area" id="output"></div>
+
+    <div class="import-bar">
+        <div class="import-controls">
+            <div class="ref-input-group">
+                <label class="ref-label">Importar para Fatura de:</label>
+                <input type="month" id="import-ref-month" class="ref-input">
+            </div>
+            <label for="fileInput" class="btn-import"><i class="fa-solid fa-file-import"></i></label>
+            <button class="btn-clear" onclick="clearData()"><i class="fa-solid fa-trash"></i></button>
+        </div>
+    </div>
+    <input type="file" id="fileInput" accept=".txt">
+
+    <script src="script.js"></script>
+</body>
+</html>
