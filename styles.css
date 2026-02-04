@@ -131,3 +131,61 @@ input[type="file"] { display: none; }
 .keyword-tag { background: #F2F2F7; padding: 4px 8px; border-radius: 6px; font-size: 11px; color: #333; display: flex; align-items: center; gap: 5px; }
 .keyword-remove { cursor: pointer; color: #999; font-weight: bold; }
 .keyword-add-input { border: none; border-bottom: 1px solid #ddd; padding: 4px; font-size: 12px; width: 100px; outline: none; }
+/* --- Botão Salvar Renda --- */
+.income-wrapper { position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.btn-save-income {
+    background: var(--ios-green); color: white; border: none; width: 35px; height: 35px;
+    border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-size: 14px;
+}
+.btn-save-income:active { transform: scale(0.95); }
+
+/* --- Botão Flutuante (Adicionar Manual) --- */
+.fab-add {
+    position: fixed; bottom: 85px; right: 20px; /* Acima da barra de importação */
+    background: var(--ios-blue); color: white; width: 55px; height: 55px;
+    border-radius: 50%; border: none; font-size: 24px;
+    box-shadow: 0 4px 15px rgba(0,122,255,0.4); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; z-index: 90;
+    transition: transform 0.2s;
+}
+.fab-add:hover { transform: scale(1.05); }
+
+/* --- Modal Formulário --- */
+.form-group { margin-bottom: 15px; }
+.form-label { display: block; font-size: 12px; color: #8E8E93; margin-bottom: 5px; font-weight: 600; }
+.form-input, .form-select {
+    width: 100%; padding: 12px; border: 1px solid #E5E5EA; border-radius: 12px;
+    font-size: 16px; background: #F9F9F9; outline: none;
+}
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.btn-block { width: 100%; padding: 15px; border-radius: 12px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+.btn-primary { background: var(--ios-blue); color: white; }
+
+/* --- Modal de Rendas --- */
+.income-list {
+    margin-top: 15px;
+    max-height: 250px;
+    overflow-y: auto;
+}
+.income-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px; border-bottom: 1px solid #f0f0f0; background: #fff;
+}
+.income-item:last-child { border-bottom: none; }
+.income-desc { font-weight: 500; color: var(--ios-text); }
+.income-val { font-weight: 700; color: var(--ios-green); }
+.btn-del-income {
+    background: none; border: none; color: var(--ios-red);
+    cursor: pointer; margin-left: 10px; font-size: 14px;
+}
+.income-total-display {
+    text-align: center; font-size: 24px; font-weight: 800;
+    color: var(--ios-green); margin: 15px 0;
+}
+/* Ajuste no Header para o botão de + */
+.btn-add-income-trigger {
+    background: var(--ios-blue); color: white; border: none; width: 30px; height: 30px;
+    border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; margin-left: 5px;
+}

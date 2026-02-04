@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gestor Financeiro (TXT)</title>
-    
+    <title>Gestor V26</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
@@ -12,28 +11,18 @@
 <body>
 
     <div id="login-screen" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: var(--ios-bg);">
-        <div style="font-size: 50px; color: var(--ios-blue); margin-bottom: 20px;">
-            <i class="fa-solid fa-file-invoice-dollar"></i>
-        </div>
+        <div style="font-size: 50px; color: var(--ios-blue); margin-bottom: 20px;"><i class="fa-solid fa-wallet"></i></div>
         <h1 style="margin-bottom: 10px;">Gestor Financeiro</h1>
-        <p style="color: gray; margin-bottom: 30px;">Importação Banco do Brasil (TXT)</p>
-        <button id="btn-login" style="background: var(--ios-blue); color: white; padding: 15px 30px; border-radius: 12px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px;">
-            <i class="fa-brands fa-google"></i> Entrar com Google
-        </button>
+        <button id="btn-login" style="background: var(--ios-blue); color: white; padding: 15px 30px; border-radius: 12px; border: none; font-size: 16px; font-weight: bold; cursor: pointer;">Entrar com Google</button>
     </div>
 
     <div id="app-screen" style="display: none;">
-        
         <div class="header-container">
             <div class="top-bar">
-                <div class="app-brand">Minhas Faturas</div>
+                <div class="app-brand">Minhas Finanças</div>
                 <div style="display: flex; gap: 15px; align-items: center;">
-                    <button id="btn-settings" style="background:none; border:none; color:var(--ios-blue); cursor:pointer; font-size:20px;">
-                        <i class="fa-solid fa-gear"></i>
-                    </button>
-                    <button id="btn-logout" style="background:none; border:none; color:var(--ios-red); cursor:pointer; font-size:20px;">
-                        <i class="fa-solid fa-right-from-bracket"></i>
-                    </button>
+                    <button id="btn-settings" style="background:none; border:none; color:var(--ios-blue); cursor:pointer; font-size:20px;"><i class="fa-solid fa-gear"></i></button>
+                    <button id="btn-logout" style="background:none; border:none; color:var(--ios-red); cursor:pointer; font-size:20px;"><i class="fa-solid fa-right-from-bracket"></i></button>
                 </div>
             </div>
 
@@ -42,17 +31,18 @@
             </div>
 
             <div class="income-container">
-                <div class="income-label" id="income-label-text">Renda Mensal</div>
+                <div class="income-label" id="income-label-text">Renda Total</div>
                 <div class="income-wrapper">
                     <span style="font-size:20px; font-weight:600; color:#8E8E93;">R$</span>
-                    <input type="text" id="monthly-income" inputmode="numeric" placeholder="0,00">
+                    <input type="text" id="monthly-income" inputmode="numeric" placeholder="0,00" readonly style="color: var(--ios-green);">
+                    <button id="btn-manage-income" class="btn-add-income-trigger" title="Gerenciar Rendas"><i class="fa-solid fa-pen-to-square"></i></button>
                 </div>
             </div>
         </div>
 
         <div class="dashboard-grid">
             <div class="card">
-                <div class="card-label">Gastos Brutos</div>
+                <div class="card-label">Gastos</div>
                 <div class="card-value" id="month-gross">R$ 0,00</div>
             </div>
             <div class="card">
@@ -72,21 +62,20 @@
             </div>
         </div>
 
-        <div class="chart-box">
-            <canvas id="expenseChart"></canvas>
-        </div>
-
-        <div class="list-title">Extrato da Fatura</div>
+        <div class="chart-box"><canvas id="expenseChart"></canvas></div>
+        <div class="list-title">Extrato</div>
         <div class="list-area" id="output"></div>
+
+        <button id="btn-open-manual" class="fab-add"><i class="fa-solid fa-plus"></i></button>
 
         <div class="import-bar">
             <div class="import-controls">
                 <div class="ref-input-group">
-                    <label class="ref-label">Importar TXT (BB):</label>
+                    <label class="ref-label">Importar TXT:</label>
                     <input type="month" id="import-ref-month" class="ref-input">
                 </div>
                 <label for="fileInput" class="btn-import"><i class="fa-solid fa-file-import"></i></label>
-                <button class="btn-clear" id="btn-delete-month" title="Apagar Mês"><i class="fa-solid fa-trash"></i></button>
+                <button class="btn-clear" id="btn-delete-month"><i class="fa-solid fa-trash"></i></button>
             </div>
         </div>
         <input type="file" id="fileInput" accept=".txt">
@@ -104,6 +93,53 @@
                     <button id="btn-add-cat" class="btn-small-blue">Criar</button>
                 </div>
                 <div id="categories-list" class="categories-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="manual-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Novo Lançamento</h2>
+                <button id="btn-close-manual" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group"><label class="form-label">Descrição</label><input type="text" id="manual-desc" class="form-input"></div>
+                <div class="row-2">
+                    <div class="form-group"><label class="form-label">Valor</label><input type="number" id="manual-val" class="form-input" step="0.01"></div>
+                    <div class="form-group"><label class="form-label">Data</label><input type="date" id="manual-date" class="form-input"></div>
+                </div>
+                <div class="form-group"><label class="form-label">Categoria</label><select id="manual-cat" class="form-select"></select></div>
+                <div class="form-group"><label><input type="radio" name="tx-type" value="debit" checked> Gasto</label> <label><input type="radio" name="tx-type" value="credit"> Crédito</label></div>
+                <button id="btn-save-manual" class="btn-block btn-primary">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="income-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Gerenciar Rendas</h2>
+                <button id="btn-close-income" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="income-total-display" id="modal-income-total">R$ 0,00</div>
+                
+                <div class="row-2">
+                    <div class="form-group">
+                        <label class="form-label">Fonte (Ex: Salário 1)</label>
+                        <input type="text" id="inc-desc" class="form-input" placeholder="Descrição">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Valor</label>
+                        <input type="number" id="inc-val" class="form-input" placeholder="0.00" step="0.01">
+                    </div>
+                </div>
+                <button id="btn-add-income-item" class="btn-block btn-primary" style="background:var(--ios-green);">Adicionar Renda</button>
+
+                <div class="form-label" style="margin-top:20px;">Fontes Cadastradas:</div>
+                <div id="income-list-area" class="income-list">
+                    </div>
             </div>
         </div>
     </div>
