@@ -31,8 +31,7 @@ const DEFAULT_RULES = {
 
 let appState = {
     transactions: [],
-    // monthlyIncomes agora será apenas um cache visual ou ignorado em favor de incomeDetails
-    incomeDetails: {}, // Estrutura: { "2026-01": [ {id, desc, val}, ... ] }
+    incomeDetails: {}, 
     categoryRules: JSON.parse(JSON.stringify(DEFAULT_RULES)), 
     categories: [...Object.keys(DEFAULT_RULES)],
     currentViewMonth: null,
@@ -54,20 +53,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('fileInput').addEventListener('change', (e) => handleFileUpload(e.target.files[0]));
     document.getElementById('btn-delete-month').addEventListener('click', deleteCurrentMonth);
 
-    // --- MODAIS ---
-    // Categorias
+    // MODAIS
+    // 1. Categorias
     const modalSettings = document.getElementById('settings-modal');
     document.getElementById('btn-settings').addEventListener('click', () => { renderCategoryManager(); modalSettings.style.display = 'flex'; });
     document.getElementById('btn-close-settings').addEventListener('click', () => modalSettings.style.display = 'none');
     document.getElementById('btn-add-cat').addEventListener('click', addNewCategory);
 
-    // Manual
+    // 2. Manual (Novo/Editar)
     const modalManual = document.getElementById('manual-modal');
-    document.getElementById('btn-open-manual').addEventListener('click', openManualModal);
+    document.getElementById('btn-open-manual').addEventListener('click', () => openManualModal());
     document.getElementById('btn-close-manual').addEventListener('click', () => modalManual.style.display = 'none');
     document.getElementById('btn-save-manual').addEventListener('click', saveManualTransaction);
 
-    // Renda (Novo)
+    // 3. Rendas
     const modalIncome = document.getElementById('income-modal');
     document.getElementById('btn-manage-income').addEventListener('click', openIncomeModal);
     document.getElementById('btn-close-income').addEventListener('click', () => modalIncome.style.display = 'none');
@@ -93,11 +92,10 @@ function startRealtimeListener(uid) {
         if (docSnap.exists()) {
             const data = docSnap.data();
             appState.transactions = data.transactions || [];
-            
-            // Carrega detalhes de renda (ou migra antigo monthlyIncomes se existir e details não)
             appState.incomeDetails = data.incomeDetails || {};
+            
+            // Migração de renda antiga (se houver)
             if (data.monthlyIncomes && Object.keys(appState.incomeDetails).length === 0) {
-                // Migração simples
                 Object.keys(data.monthlyIncomes).forEach(m => {
                     if (data.monthlyIncomes[m] > 0) {
                         appState.incomeDetails[m] = [{ id: Date.now(), desc: "Renda Principal", val: data.monthlyIncomes[m] }];
@@ -121,13 +119,111 @@ async function saveToFirebase() {
     try {
         await updateDoc(userDocRef, {
             transactions: appState.transactions,
-            incomeDetails: appState.incomeDetails, // Salva estrutura nova
+            incomeDetails: appState.incomeDetails,
             categoryRules: appState.categoryRules
         });
     } catch (e) { console.error(e); }
 }
 
-// --- GERENCIAMENTO DE RENDA MÚLTIPLA ---
+// --- EDIÇÃO E CRIAÇÃO MANUAL ---
+window.editTransaction = (id) => {
+    const tx = appState.transactions.find(t => t.id === id);
+    if(tx) openManualModal(tx);
+};
+
+window.deleteTransaction = (id) => {
+    if(confirm("Excluir este lançamento?")) {
+        appState.transactions = appState.transactions.filter(t => t.id !== id);
+        saveToFirebase();
+        filterAndRender();
+    }
+};
+
+function openManualModal(txToEdit = null) {
+    const modal = document.getElementById('manual-modal');
+    const select = document.getElementById('manual-cat');
+    
+    select.innerHTML = '';
+    appState.categories.sort().forEach(cat => {
+        const opt = document.createElement('option'); opt.value = cat; opt.text = cat; select.add(opt);
+    });
+    
+    if(txToEdit) {
+        document.getElementById('manual-modal-title').innerText = "Editar Lançamento";
+        modal.dataset.editId = txToEdit.id;
+        document.getElementById('manual-desc').value = txToEdit.description;
+        document.getElementById('manual-val').value = Math.abs(txToEdit.amount);
+        const [d, m, y] = txToEdit.date.split('.');
+        document.getElementById('manual-date').value = `${y}-${m}-${d}`;
+        document.getElementById('manual-cat').value = txToEdit.category;
+        const type = txToEdit.amount < 0 ? 'credit' : 'debit';
+        document.querySelector(`input[name="tx-type"][value="${type}"]`).checked = true;
+    } else {
+        document.getElementById('manual-modal-title').innerText = "Novo Lançamento";
+        delete modal.dataset.editId;
+        document.getElementById('manual-desc').value = '';
+        document.getElementById('manual-val').value = '';
+        document.getElementById('manual-date').value = new Date().toISOString().split('T')[0];
+        document.querySelector('input[name="tx-type"][value="debit"]').checked = true;
+    }
+    
+    modal.style.display = 'flex';
+}
+
+function saveManualTransaction() {
+    const modal = document.getElementById('manual-modal');
+    const editId = modal.dataset.editId;
+    const desc = document.getElementById('manual-desc').value.trim();
+    const valStr = document.getElementById('manual-val').value;
+    const dateStr = document.getElementById('manual-date').value;
+    const cat = document.getElementById('manual-cat').value;
+    const type = document.querySelector('input[name="tx-type"]:checked').value;
+
+    if(!desc || !valStr || !dateStr) { alert("Preencha tudo!"); return; }
+
+    let amount = parseFloat(valStr);
+    if (type === 'credit') amount = -Math.abs(amount);
+    else amount = Math.abs(amount);
+
+    const [y, m, d] = dateStr.split('-');
+    const formattedDate = `${d}.${m}.${y}`;
+    const billMonth = `${y}-${m}`;
+
+    if(editId) {
+        const index = appState.transactions.findIndex(t => t.id === editId);
+        if(index > -1) {
+            appState.transactions[index] = {
+                ...appState.transactions[index],
+                date: formattedDate,
+                billMonth: billMonth,
+                description: desc,
+                amount: amount,
+                category: cat
+            };
+        }
+    } else {
+        appState.transactions.push({
+            id: "MAN_" + Date.now(),
+            date: formattedDate,
+            billMonth: billMonth,
+            description: desc,
+            amount: amount,
+            category: cat,
+            isBillPayment: false
+        });
+    }
+
+    saveToFirebase();
+    modal.style.display = 'none';
+    if(appState.currentViewMonth !== "ALL" && appState.currentViewMonth !== billMonth && !editId) {
+        appState.currentViewMonth = billMonth;
+        initViewSelector();
+    } else {
+        filterAndRender();
+    }
+}
+
+// --- GERENCIAMENTO DE RENDA ---
 function openIncomeModal() {
     if(appState.currentViewMonth === "ALL") { alert("Selecione um mês específico."); return; }
     renderIncomeList();
@@ -139,107 +235,38 @@ function renderIncomeList() {
     const list = appState.incomeDetails[month] || [];
     const container = document.getElementById('income-list-area');
     container.innerHTML = '';
-    
     let total = 0;
-
     list.forEach((item, index) => {
         total += item.val;
-        const div = document.createElement('div');
-        div.className = 'income-item';
-        div.innerHTML = `
-            <div>
+        container.innerHTML += `
+            <div class="income-item">
                 <div class="income-desc">${item.desc}</div>
-            </div>
-            <div style="display:flex; align-items:center;">
-                <span class="income-val">${formatBRL(item.val)}</span>
-                <button class="btn-del-income" onclick="window.removeIncome(${index})"><i class="fa-solid fa-trash"></i></button>
-            </div>
-        `;
-        container.appendChild(div);
+                <div style="display:flex; align-items:center;">
+                    <span class="income-val">${formatBRL(item.val)}</span>
+                    <button class="btn-del-income" onclick="window.removeIncome(${index})"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            </div>`;
     });
-
     document.getElementById('modal-income-total').innerText = formatBRL(total);
 }
 
 function addIncomeItem() {
     const desc = document.getElementById('inc-desc').value.trim();
     const val = parseFloat(document.getElementById('inc-val').value);
-    
-    if(!desc || isNaN(val) || val <= 0) { alert("Informe descrição e valor válido."); return; }
-    
+    if(!desc || isNaN(val) || val <= 0) return;
     const month = appState.currentViewMonth;
     if(!appState.incomeDetails[month]) appState.incomeDetails[month] = [];
-    
     appState.incomeDetails[month].push({ id: Date.now(), desc: desc, val: val });
-    
-    saveToFirebase();
-    renderIncomeList(); // Atualiza modal
-    filterAndRender();  // Atualiza tela principal em background
-    
-    // Limpa campos
-    document.getElementById('inc-desc').value = '';
-    document.getElementById('inc-val').value = '';
+    saveToFirebase(); renderIncomeList(); filterAndRender();
+    document.getElementById('inc-desc').value = ''; document.getElementById('inc-val').value = '';
 }
 
 window.removeIncome = (index) => {
     const month = appState.currentViewMonth;
-    if(!appState.incomeDetails[month]) return;
-    
-    appState.incomeDetails[month].splice(index, 1);
-    saveToFirebase();
-    renderIncomeList();
-    filterAndRender();
+    if(appState.incomeDetails[month]) { appState.incomeDetails[month].splice(index, 1); saveToFirebase(); renderIncomeList(); filterAndRender(); }
 };
 
-// --- MANUAL E IMPORTAÇÃO (MANTER IGUAL) ---
-function openManualModal() {
-    const modal = document.getElementById('manual-modal');
-    const select = document.getElementById('manual-cat');
-    select.innerHTML = '';
-    appState.categories.sort().forEach(cat => {
-        const opt = document.createElement('option'); opt.value = cat; opt.text = cat; select.add(opt);
-    });
-    modal.style.display = 'flex';
-}
-
-function saveManualTransaction() {
-    const desc = document.getElementById('manual-desc').value.trim();
-    const valStr = document.getElementById('manual-val').value;
-    const dateStr = document.getElementById('manual-date').value;
-    const cat = document.getElementById('manual-cat').value;
-    const type = document.querySelector('input[name="tx-type"]:checked').value;
-
-    if(!desc || !valStr || !dateStr) return;
-
-    let amount = parseFloat(valStr);
-    if (type === 'credit') amount = -Math.abs(amount);
-    else amount = Math.abs(amount);
-
-    const [y, m, d] = dateStr.split('-');
-    const formattedDate = `${d}.${m}.${y}`;
-    const billMonth = `${y}-${m}`;
-
-    appState.transactions.push({
-        id: "MAN_" + Date.now(),
-        date: formattedDate,
-        billMonth: billMonth,
-        description: desc,
-        amount: amount,
-        category: cat,
-        isBillPayment: false
-    });
-
-    saveToFirebase();
-    alert("Salvo!");
-    document.getElementById('manual-modal').style.display = 'none';
-    if(appState.currentViewMonth !== "ALL" && appState.currentViewMonth !== billMonth) {
-        appState.currentViewMonth = billMonth;
-        initViewSelector(); 
-    } else {
-        filterAndRender();
-    }
-}
-
+// --- IMPORTAÇÃO (CORRIGIDA V24) ---
 async function handleFileUpload(file) {
     if(!file) return;
     const targetMonth = document.getElementById('import-ref-month').value;
@@ -247,12 +274,8 @@ async function handleFileUpload(file) {
     try {
         const textContent = await file.text();
         const count = parseFile(textContent, targetMonth);
-        if(count > 0) {
-            await saveToFirebase();
-            alert(`Sucesso: ${count} itens.`);
-            appState.currentViewMonth = targetMonth;
-            initViewSelector();
-        } else { alert("Nada encontrado."); }
+        if(count > 0) { await saveToFirebase(); alert(`Sucesso! ${count} importados.`); appState.currentViewMonth = targetMonth; initViewSelector(); } 
+        else { alert("Nada encontrado."); }
     } catch (e) { console.error(e); }
     document.getElementById('fileInput').value = '';
 }
@@ -268,7 +291,7 @@ function parseFile(text, billMonth) {
         let desc = rawDesc.replace(/\*/g, ' ').replace(/\s+/g, ' ').trim();
         const upperDesc = desc.toUpperCase();
         if (upperDesc.includes("SALDO FATURA") || upperDesc.includes("SUBTOTAL") || upperDesc.includes("TOTAL") || upperDesc === "BR") continue;
-        if (upperDesc.includes("PGTO")) continue; // Filtro de Pagamento
+        if (upperDesc.includes("PGTO")) continue;
         const cat = detectCategory(desc);
         const exists = appState.transactions.some(t => t.description === desc && t.amount === val && t.date === dateRaw && t.billMonth === billMonth);
         if(!exists) {
@@ -284,9 +307,7 @@ function parseFile(text, billMonth) {
 
 function detectCategory(description) {
     const descUpper = description.toUpperCase();
-    for (const [category, keywords] of Object.entries(appState.categoryRules)) {
-        for (const word of keywords) { if (descUpper.includes(word)) return category; }
-    }
+    for (const [category, keywords] of Object.entries(appState.categoryRules)) { for (const word of keywords) { if (descUpper.includes(word)) return category; } }
     return "Outros";
 }
 
@@ -307,30 +328,20 @@ window.changeViewMonth = (val) => { appState.currentViewMonth = val; filterAndRe
 function filterAndRender() {
     const view = appState.currentViewMonth;
     let txs = []; let currentIncome = 0; let labelText = "";
-
     if (view === "ALL") {
         txs = appState.transactions;
-        // Soma todas as rendas de todos os meses
-        Object.values(appState.incomeDetails).forEach(list => {
-            list.forEach(i => currentIncome += i.val);
-        });
+        Object.values(appState.incomeDetails).forEach(list => list.forEach(i => currentIncome += i.val));
         labelText = "Renda Acumulada";
     } else {
         txs = appState.transactions.filter(t => t.billMonth === view);
-        // Soma rendas do mês atual
-        const incomeList = appState.incomeDetails[view] || [];
-        incomeList.forEach(i => currentIncome += i.val);
+        (appState.incomeDetails[view] || []).forEach(i => currentIncome += i.val);
         labelText = `Renda de ${formatMonthLabel(view).split(' ')[0]}`;
     }
-
     const inputEl = document.getElementById('monthly-income');
     if(currentIncome > 0) inputEl.value = currentIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
     else inputEl.value = "0,00";
-    
     document.getElementById('income-label-text').innerText = labelText;
-    // O botão de gerenciar renda só funciona em mês específico
     document.getElementById('btn-manage-income').style.display = (view === "ALL") ? "none" : "flex";
-
     renderUI(txs, currentIncome);
 }
 
@@ -379,10 +390,16 @@ function renderUI(transactions, currentIncome) {
             const div = document.createElement('div');
             div.className = 'tx-item';
             div.innerHTML = `
-                <div class="tx-main"><span class="tx-desc">${item.description}</span><span class="tx-date">${item.date}</span></div>
-                <div class="tx-side">
-                    <span class="tx-val ${isRefund ? 'color-pos' : 'color-neg'}">${isRefund ? '+ ' : ''}${formatBRL(Math.abs(item.amount))}</span>
-                    <select class="cat-picker" data-id="${item.id}">${options}</select>
+                <div class="tx-row-main">
+                    <div class="tx-main"><span class="tx-desc">${item.description}</span><span class="tx-date">${item.date}</span></div>
+                    <div class="tx-side">
+                        <span class="tx-val ${isRefund ? 'color-pos' : 'color-neg'}">${isRefund ? '+ ' : ''}${formatBRL(Math.abs(item.amount))}</span>
+                        <select class="cat-picker" data-id="${item.id}">${options}</select>
+                    </div>
+                </div>
+                <div class="tx-actions">
+                    <button class="btn-icon-action btn-edit" onclick="window.editTransaction('${item.id}')"><i class="fa-solid fa-pen"></i></button>
+                    <button class="btn-icon-action btn-delete" onclick="window.deleteTransaction('${item.id}')"><i class="fa-solid fa-trash"></i></button>
                 </div>`;
             listBox.appendChild(div);
         });
@@ -399,7 +416,7 @@ function renderUI(transactions, currentIncome) {
     });
 }
 
-// Helpers
+// Config e Helpers
 function renderCategoryManager() {
     const list = document.getElementById('categories-list');
     list.innerHTML = '';
@@ -428,7 +445,6 @@ window.removeKeyword = (cat, word) => { appState.categoryRules[cat] = appState.c
 window.deleteCategory = (cat) => { if(confirm(`Excluir ${cat}?`)) { delete appState.categoryRules[cat]; saveToFirebase(); renderCategoryManager(); } };
 function addNewCategory() { const input = document.getElementById('new-cat-name'); const name = input.value.trim(); if(name && !appState.categoryRules[name]) { appState.categoryRules[name] = []; input.value = ''; saveToFirebase(); renderCategoryManager(); } }
 function updateChart(data) { const ctx = document.getElementById('expenseChart').getContext('2d'); const labels = Object.keys(data).filter(k => data[k] > 0); const values = labels.map(k => data[k]); if(chartInstance) chartInstance.destroy(); chartInstance = new Chart(ctx, { type: 'doughnut', data: { labels: labels, datasets: [{ data: values, backgroundColor: CHART_COLORS, borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, usePointStyle: true } } } } }); }
-function formatAndSetIncome(elem) { return; } // Desabilitado pois agora é automático
-function deleteCurrentMonth() { if(appState.currentViewMonth === "ALL") return; if(confirm(`Apagar dados?`)) { appState.transactions = appState.transactions.filter(t => t.billMonth !== appState.currentViewMonth); delete appState.incomeDetails[appState.currentViewMonth]; saveToFirebase(); } }
+function deleteCurrentMonth() { if(appState.currentViewMonth === "ALL") { alert("Não é possível apagar a visão geral."); return; } if(!appState.currentViewMonth) return; if(confirm(`ATENÇÃO: Apagar dados de ${appState.currentViewMonth}?`)) { appState.transactions = appState.transactions.filter(t => t.billMonth !== appState.currentViewMonth); delete appState.incomeDetails[appState.currentViewMonth]; saveToFirebase(); } }
 function formatMonthLabel(isoMonth) { if(!isoMonth) return "---"; const [y, m] = isoMonth.split('-'); const date = new Date(y, m - 1); const name = date.toLocaleString('pt-BR', { month: 'long' }); return `${name.charAt(0).toUpperCase() + name.slice(1)} ${y}`; }
 function formatBRL(v) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }

@@ -12,13 +12,12 @@
 * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
 body { font-family: var(--ios-font); background-color: var(--ios-bg); color: var(--ios-text); padding-bottom: 120px; }
 
-/* --- Header --- */
+/* Header */
 .header-container {
     background: var(--ios-card); padding: 20px 20px 25px 20px;
     border-bottom-left-radius: 24px; border-bottom-right-radius: 24px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 25px;
 }
-
 .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .app-brand { font-size: 18px; font-weight: 800; color: var(--ios-blue); letter-spacing: -0.5px; }
 
@@ -28,23 +27,16 @@ body { font-family: var(--ios-font); background-color: var(--ios-bg); color: var
     color: var(--ios-text); cursor: pointer; text-align: right;
 }
 
-/* --- Input de Renda (Atualizado) --- */
+/* Renda */
 .income-container { text-align: center; }
 .income-label { font-size: 11px; color: var(--ios-text-sec); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
-.income-wrapper { display: flex; justify-content: center; align-items: baseline; gap: 4px; }
-
+.income-wrapper { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 5px; }
 #monthly-income {
-    font-size: 40px;
-    font-weight: 800; 
-    border: none; 
-    background: transparent;
-    width: 280px;
-    color: var(--ios-text); 
-    text-align: center;
+    font-size: 40px; font-weight: 800; border: none; background: transparent;
+    width: 220px; color: var(--ios-text); text-align: center;
 }
-#monthly-income::placeholder { color: #E5E5EA; }
 
-/* --- Dashboard --- */
+/* Dashboard */
 .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 0 20px; margin-bottom: 20px; }
 .card { 
     background: var(--ios-card); padding: 20px; border-radius: 20px; 
@@ -63,18 +55,19 @@ body { font-family: var(--ios-font); background-color: var(--ios-bg); color: var
 .highlight-card .value { font-size: 26px; font-weight: 800; }
 .val-refund { color: var(--ios-green); }
 
-/* --- Gráfico --- */
+/* Gráfico */
 .chart-box { background: var(--ios-card); margin: 0 20px 20px 20px; padding: 20px; border-radius: 20px; height: 260px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
 
-/* --- Lista --- */
+/* Lista */
 .list-title { padding: 0 25px; margin-bottom: 10px; font-size: 16px; font-weight: 700; color: var(--ios-text-sec); }
 .list-area { padding: 0 20px; }
 .cat-group { margin-bottom: 20px; }
 .cat-header { display: flex; justify-content: space-between; margin-bottom: 8px; padding: 0 5px; }
 .cat-name { font-size: 11px; font-weight: 800; color: var(--ios-text-sec); text-transform: uppercase; }
 .list-box { background: var(--ios-card); border-radius: 18px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
-.tx-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 16px; border-bottom: 1px solid #F7F7F7; }
+.tx-item { padding: 15px 16px; border-bottom: 1px solid #F7F7F7; }
 .tx-item:last-child { border-bottom: none; }
+.tx-row-main { display: flex; justify-content: space-between; align-items: center; }
 .tx-main { display: flex; flex-direction: column; gap: 2px; }
 .tx-desc { font-size: 14px; font-weight: 500; color: var(--ios-text); max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tx-date { font-size: 10px; color: var(--ios-text-sec); }
@@ -84,7 +77,18 @@ body { font-family: var(--ios-font); background-color: var(--ios-bg); color: var
 .color-neg { color: var(--ios-text); }
 .cat-picker { border: none; background: #F2F2F7; color: var(--ios-blue); font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 6px; cursor: pointer;}
 
-/* --- Importação --- */
+/* Ações (Editar/Excluir) */
+.tx-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
+.btn-icon-action {
+    background: #E5E5EA; border: none; width: 32px; height: 32px;
+    border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    color: var(--ios-text-sec); transition: 0.2s; font-size: 14px;
+}
+.btn-icon-action:hover { background: #d1d1d6; color: var(--ios-text); }
+.btn-edit { color: var(--ios-blue); }
+.btn-delete { color: var(--ios-red); }
+
+/* Importação */
 .import-bar {
     position: fixed; bottom: 0; left: 0; width: 100%;
     background: rgba(255,255,255,0.95); backdrop-filter: blur(20px);
@@ -99,50 +103,9 @@ body { font-family: var(--ios-font); background-color: var(--ios-bg); color: var
 .btn-clear { background: #FFE5E5; color: var(--ios-red); border: none; width: 40px; height: 42px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 input[type="file"] { display: none; }
 
-/* --- MODAL --- */
-.modal-overlay {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.5); z-index: 200;
-    display: flex; justify-content: center; align-items: center;
-    backdrop-filter: blur(5px);
-}
-.modal-content {
-    background: white; width: 90%; max-width: 500px; max-height: 80vh;
-    border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-    display: flex; flex-direction: column; overflow: hidden;
-}
-.modal-header {
-    padding: 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;
-}
-.modal-header h2 { font-size: 18px; margin: 0; }
-.close-btn { background: none; border: none; font-size: 28px; cursor: pointer; color: #888; }
-.modal-body { padding: 20px; overflow-y: auto; }
-
-.new-cat-row { display: flex; gap: 10px; margin-bottom: 20px; }
-.input-modern { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 10px; }
-.btn-small-blue { background: var(--ios-blue); color: white; border: none; padding: 0 15px; border-radius: 10px; cursor: pointer; font-weight: 600; }
-
-.cat-edit-item { border: 1px solid #eee; border-radius: 12px; padding: 15px; margin-bottom: 10px; }
-.cat-edit-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.cat-name-display { font-weight: 700; color: var(--ios-blue); }
-.btn-delete-cat { color: var(--ios-red); background: none; border: none; cursor: pointer; font-size: 14px; }
-
-.keywords-area { display: flex; flex-wrap: wrap; gap: 5px; }
-.keyword-tag { background: #F2F2F7; padding: 4px 8px; border-radius: 6px; font-size: 11px; color: #333; display: flex; align-items: center; gap: 5px; }
-.keyword-remove { cursor: pointer; color: #999; font-weight: bold; }
-.keyword-add-input { border: none; border-bottom: 1px solid #ddd; padding: 4px; font-size: 12px; width: 100px; outline: none; }
-/* --- Botão Salvar Renda --- */
-.income-wrapper { position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; }
-.btn-save-income {
-    background: var(--ios-green); color: white; border: none; width: 35px; height: 35px;
-    border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-size: 14px;
-}
-.btn-save-income:active { transform: scale(0.95); }
-
-/* --- Botão Flutuante (Adicionar Manual) --- */
+/* Botão Flutuante */
 .fab-add {
-    position: fixed; bottom: 85px; right: 20px; /* Acima da barra de importação */
+    position: fixed; bottom: 90px; right: 20px;
     background: var(--ios-blue); color: white; width: 55px; height: 55px;
     border-radius: 50%; border: none; font-size: 24px;
     box-shadow: 0 4px 15px rgba(0,122,255,0.4); cursor: pointer;
@@ -151,41 +114,56 @@ input[type="file"] { display: none; }
 }
 .fab-add:hover { transform: scale(1.05); }
 
-/* --- Modal Formulário --- */
+/* Modais */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5); z-index: 200;
+    display: flex; justify-content: center; align-items: center;
+    backdrop-filter: blur(5px);
+}
+.modal-content {
+    background: white; width: 90%; max-width: 500px; max-height: 85vh;
+    border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    display: flex; flex-direction: column; overflow: hidden; animation: slideUp 0.3s ease;
+}
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.modal-header { padding: 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+.modal-header h2 { font-size: 18px; margin: 0; }
+.close-btn { background: none; border: none; font-size: 28px; cursor: pointer; color: #888; }
+.modal-body { padding: 20px; overflow-y: auto; }
+
 .form-group { margin-bottom: 15px; }
 .form-label { display: block; font-size: 12px; color: #8E8E93; margin-bottom: 5px; font-weight: 600; }
 .form-input, .form-select {
     width: 100%; padding: 12px; border: 1px solid #E5E5EA; border-radius: 12px;
-    font-size: 16px; background: #F9F9F9; outline: none;
+    font-size: 16px; background: #F9F9F9; outline: none; transition: 0.2s;
 }
+.form-input:focus { background: white; border-color: var(--ios-blue); }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .btn-block { width: 100%; padding: 15px; border-radius: 12px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
 .btn-primary { background: var(--ios-blue); color: white; }
 
-/* --- Modal de Rendas --- */
-.income-list {
-    margin-top: 15px;
-    max-height: 250px;
-    overflow-y: auto;
-}
+/* Estilos Específicos do Modal de Renda */
+.income-list { margin-top: 10px; max-height: 250px; overflow-y: auto; }
 .income-item {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 10px; border-bottom: 1px solid #f0f0f0; background: #fff;
+    padding: 12px; border-bottom: 1px solid #f0f0f0;
 }
-.income-item:last-child { border-bottom: none; }
-.income-desc { font-weight: 500; color: var(--ios-text); }
-.income-val { font-weight: 700; color: var(--ios-green); }
-.btn-del-income {
-    background: none; border: none; color: var(--ios-red);
-    cursor: pointer; margin-left: 10px; font-size: 14px;
-}
-.income-total-display {
-    text-align: center; font-size: 24px; font-weight: 800;
-    color: var(--ios-green); margin: 15px 0;
-}
-/* Ajuste no Header para o botão de + */
-.btn-add-income-trigger {
-    background: var(--ios-blue); color: white; border: none; width: 30px; height: 30px;
-    border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-    font-size: 14px; margin-left: 5px;
-}
+.income-desc { font-weight: 500; }
+.income-val { font-weight: 700; color: var(--ios-green); margin-right: 10px; }
+.btn-del-income { background: none; border: none; color: #ccc; cursor: pointer; }
+.btn-del-income:hover { color: var(--ios-red); }
+.income-total-display { text-align: center; font-size: 32px; font-weight: 800; color: var(--ios-green); margin: 10px 0 20px 0; }
+
+/* Configuração de Categorias */
+.new-cat-row { display: flex; gap: 10px; margin-bottom: 20px; }
+.btn-small-blue { background: var(--ios-blue); color: white; border: none; padding: 0 15px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+.cat-edit-item { border: 1px solid #eee; border-radius: 12px; padding: 15px; margin-bottom: 10px; }
+.cat-edit-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.cat-name-display { font-weight: 700; color: var(--ios-blue); }
+.btn-delete-cat { color: var(--ios-red); background: none; border: none; cursor: pointer; font-size: 14px; }
+.keywords-area { display: flex; flex-wrap: wrap; gap: 5px; }
+.keyword-tag { background: #F2F2F7; padding: 4px 8px; border-radius: 6px; font-size: 11px; color: #333; display: flex; align-items: center; gap: 5px; }
+.keyword-remove { cursor: pointer; color: #999; font-weight: bold; }
+.keyword-add-input { border: none; border-bottom: 1px solid #ddd; padding: 4px; font-size: 12px; width: 100px; outline: none; }
