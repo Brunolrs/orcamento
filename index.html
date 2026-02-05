@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Gestor Financeiro V37</title>
     
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -93,7 +93,7 @@
             </div>
         </div>
 
-        <div class="collapsible-header" onclick="toggleSection('chart-wrapper', 'icon-chart')">
+        <div class="collapsible-header" id="btn-col-chart">
             <span>Gráfico</span>
             <i id="icon-chart" class="fa-solid fa-chevron-up"></i>
         </div>
@@ -103,7 +103,7 @@
             </div>
         </div>
 
-        <div class="collapsible-header" onclick="toggleSection('category-summary-area', 'icon-cat')">
+        <div class="collapsible-header" id="btn-col-cat">
             <span>Resumo por Categoria</span>
             <i id="icon-cat" class="fa-solid fa-chevron-up"></i>
         </div>
@@ -111,7 +111,7 @@
             </div>
 
         <div class="section-header-wrapper">
-            <div class="collapsible-header" onclick="toggleSection('output', 'icon-list')" style="flex-grow: 1; margin-bottom: 0;">
+            <div class="collapsible-header" id="btn-col-list" style="flex-grow: 1; margin-bottom: 0;">
                 <span>Extrato Detalhado</span>
                 <i id="icon-list" class="fa-solid fa-chevron-up"></i>
             </div>

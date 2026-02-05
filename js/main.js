@@ -1,46 +1,51 @@
 /**
- * MAIN - PONTO DE ENTRADA E CONTROLE
- * Gerencia eventos, modais e funções globais (window).
+ * MAIN - PONTO DE ENTRADA
  */
 import { auth, signInWithPopup, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase } from './firebase.js';
 import { appState } from './state.js';
 import { initViewSelector, filterAndRender, renderIncomeList, renderCategoryManager } from './ui.js';
 import { parseFileContent, lockBodyScroll, unlockBodyScroll, vibrate } from './utils.js';
 
-// --- INICIALIZAÇÃO (DOM READY) ---
+// --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Configura Datas Iniciais
+    // 1. Configura Datas
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     if(document.getElementById('import-ref-month')) document.getElementById('import-ref-month').value = `${yyyy}-${mm}`;
     if(document.getElementById('manual-date')) document.getElementById('manual-date').value = `${yyyy}-${mm}-${String(today.getDate()).padStart(2,'0')}`;
 
-    // Eventos de Autenticação
-    document.getElementById('btn-login').addEventListener('click', () => { vibrate(); signInWithPopup(auth); });
-    
-    // Filtros e Inputs
+    // 2. Auth
+    const btnLogin = document.getElementById('btn-login');
+    if(btnLogin) btnLogin.addEventListener('click', () => { vibrate(); signInWithPopup(auth); });
+
+    // 3. Menus e Controles
     document.getElementById('view-month').addEventListener('change', (e) => {
         appState.currentViewMonth = e.target.value;
         filterAndRender();
     });
     document.getElementById('fileInput').addEventListener('change', (e) => handleFileUpload(e.target.files[0]));
 
-    // Menu Dropdown (Cabeçalho)
     const btnToggleMenu = document.getElementById('btn-toggle-menu');
     const dropdown = document.getElementById('main-dropdown');
     btnToggleMenu.addEventListener('click', (e) => { e.stopPropagation(); vibrate(); dropdown.classList.toggle('show'); });
     window.addEventListener('click', () => { if (dropdown.classList.contains('show')) dropdown.classList.remove('show'); });
 
-    // Ações do Menu
     document.getElementById('btn-logout').addEventListener('click', () => signOut(auth));
     document.getElementById('btn-delete-month').addEventListener('click', () => { vibrate(100); deleteCurrentMonth(); });
 
-    // --- CONFIGURAÇÃO DE MODAIS (Com Scroll Lock) ---
+    // 4. Seções Expansíveis (SUBSTITUI OS ONCLICK DO HTML)
+    document.getElementById('btn-col-chart').addEventListener('click', () => window.toggleSection('chart-wrapper', 'icon-chart'));
+    document.getElementById('btn-col-cat').addEventListener('click', () => window.toggleSection('category-summary-area', 'icon-cat'));
+    document.getElementById('btn-col-list').addEventListener('click', () => window.toggleSection('output', 'icon-list'));
+
+    // 5. Botão de Edição
+    document.getElementById('btn-toggle-edit').addEventListener('click', () => { vibrate(); window.toggleEditMode(); });
+
+    // 6. Modais
     setupModal('import-modal', 'btn-open-import', 'btn-close-import', () => {
         if(appState.currentViewMonth && appState.currentViewMonth !== "ALL") document.getElementById('import-ref-month').value = appState.currentViewMonth;
     });
-    
     setupModal('settings-modal', 'btn-open-categories', 'btn-close-settings', renderCategoryManager);
     document.getElementById('btn-add-cat').addEventListener('click', () => { vibrate(); addNewCategory(); });
 
@@ -52,12 +57,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderIncomeList();
     });
     document.getElementById('btn-add-income-item').addEventListener('click', () => { vibrate(); addIncomeItem(); });
-
-    // Botão Toggle Edição em Massa
-    document.getElementById('btn-toggle-edit').addEventListener('click', () => { vibrate(); window.toggleEditMode(); });
 });
 
-// Helper para configurar eventos de modal
+// Helper de Modal
 function setupModal(modalId, openBtnId, closeBtnId, openCallback) {
     const modal = document.getElementById(modalId);
     if(document.getElementById(openBtnId)) {
@@ -65,24 +67,32 @@ function setupModal(modalId, openBtnId, closeBtnId, openCallback) {
             vibrate();
             if(openCallback) openCallback();
             modal.style.display = 'flex';
-            lockBodyScroll(); // Mobile First: Trava rolagem do fundo
+            lockBodyScroll();
         });
     }
     if(document.getElementById(closeBtnId)) {
         document.getElementById(closeBtnId).addEventListener('click', () => {
             modal.style.display = 'none';
-            unlockBodyScroll(); // Destrava rolagem
+            unlockBodyScroll();
         });
     }
 }
 
-// --- LISTENER DE AUTH ---
+// --- LISTENER DE AUTH (CORRIGIDO PARA INICIAR DADOS) ---
 onAuthStateChanged(auth, (user) => {
     if (user) {
         appState.user = user;
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app-screen').style.display = 'block';
-        startRealtimeListener(user.uid, () => initViewSelector());
+        
+        // CORREÇÃO AQUI:
+        // Antes estava chamando apenas initViewSelector()
+        // Agora chamamos filterAndRender() logo em seguida para preencher a tela
+        startRealtimeListener(user.uid, () => {
+            initViewSelector();  // 1. Cria as opções do Select
+            filterAndRender();   // 2. FORÇA O DESENHO DA TELA COM OS DADOS
+        });
+        
     } else {
         appState.user = null;
         document.getElementById('login-screen').style.display = 'flex';
@@ -91,10 +101,9 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // ============================================================================
-// FUNÇÕES GLOBAIS (EXPOSTAS PARA O HTML - ONCLICK)
+// FUNÇÕES GLOBAIS (Necessárias para o HTML dinâmico do ui.js)
 // ============================================================================
 
-// Expandir/Recolher Seções
 window.toggleSection = (sectionId, iconId) => {
     vibrate(20);
     const section = document.getElementById(sectionId);
@@ -102,7 +111,6 @@ window.toggleSection = (sectionId, iconId) => {
     if (section && icon) { section.classList.toggle('collapsed-content'); icon.classList.toggle('icon-closed'); }
 };
 
-// Alternar Modo Edição
 window.toggleEditMode = () => {
     appState.isEditMode = !appState.isEditMode;
     const btn = document.getElementById('btn-toggle-edit');
@@ -115,7 +123,6 @@ window.toggleEditMode = () => {
     filterAndRender();
 };
 
-// Atualização em Linha (Inputs)
 window.updateTx = (id, field, value) => {
     const tx = appState.transactions.find(t => t.id === id);
     if (!tx) return;
@@ -132,7 +139,6 @@ window.updateTx = (id, field, value) => {
     saveToFirebase();
 };
 
-// Excluir Transação
 window.deleteTransaction = (id) => {
     if(confirm("Excluir item?")) {
         appState.transactions = appState.transactions.filter(t => t.id !== id);
@@ -143,7 +149,6 @@ window.deleteTransaction = (id) => {
     }
 };
 
-// Abrir Modal de Edição (se não estiver em modo massa)
 window.editTransaction = (id) => {
     if(appState.isEditMode) return;
     const tx = appState.transactions.find(t => t.id === id);
@@ -155,7 +160,6 @@ window.editTransaction = (id) => {
     }
 };
 
-// Remover Renda
 window.removeIncome = (index) => {
     const month = appState.currentViewMonth;
     if(appState.incomeDetails[month]) {
@@ -166,8 +170,6 @@ window.removeIncome = (index) => {
         filterAndRender();
     }
 };
-
-// --- GESTÃO DE CATEGORIAS ---
 
 window.addKeyword = (cat, word) => {
     if(!appState.categoryRules[cat].includes(word)) {
@@ -184,52 +186,36 @@ window.removeKeyword = (cat, word) => {
 window.deleteCategory = (cat) => {
     if(confirm(`Excluir categoria "${cat}"?`)) {
         delete appState.categoryRules[cat];
-        // Se tinha cor personalizada, apaga também
         if(appState.categoryColors && appState.categoryColors[cat]) delete appState.categoryColors[cat];
-        
         saveToFirebase();
         renderCategoryManager();
     }
 };
-
-// Atualizar Cor
 window.updateCategoryColor = (cat, newColor) => {
     vibrate();
     appState.categoryColors[cat] = newColor;
     saveToFirebase();
-    filterAndRender(); // Atualiza fundo em tempo real
+    filterAndRender();
 };
-
-// Renomear Categoria (Atualiza histórico)
 window.renameCategory = (oldName, newName) => {
     newName = newName.trim();
     if (!newName || newName === oldName) return;
-    
     if (appState.categoryRules[newName]) {
         alert("Já existe uma categoria com este nome.");
         renderCategoryManager();
         return;
     }
-
-    if (confirm(`Renomear "${oldName}" para "${newName}"? Isso atualizará o histórico.`)) {
+    if (confirm(`Renomear "${oldName}" para "${newName}"?`)) {
         vibrate();
-        // 1. Copia regras
         appState.categoryRules[newName] = [...appState.categoryRules[oldName]];
-        
-        // 2. Transfere cor
         if (appState.categoryColors[oldName]) {
             appState.categoryColors[newName] = appState.categoryColors[oldName];
             delete appState.categoryColors[oldName];
         }
-
-        // 3. Atualiza transações antigas
         appState.transactions.forEach(t => {
             if (t.category === oldName) t.category = newName;
         });
-
-        // 4. Apaga antiga
         delete appState.categoryRules[oldName];
-
         saveToFirebase();
         renderCategoryManager();
         filterAndRender();
@@ -315,7 +301,6 @@ function openManualModal(txToEdit = null) {
     appState.categories.sort().forEach(cat => { const opt = document.createElement('option'); opt.value = cat; opt.text = cat; select.add(opt); });
     
     if(btnDelete) {
-        // Clone para remover listeners antigos
         const newBtn = btnDelete.cloneNode(true);
         btnDelete.parentNode.replaceChild(newBtn, btnDelete);
         newBtn.addEventListener('click', () => { if(modal.dataset.editId) window.deleteTransaction(modal.dataset.editId); });
