@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gestor Financeiro V34</title>
+    <title>Gestor Financeiro V35</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -17,7 +17,7 @@
             <i class="fa-solid fa-wallet"></i>
         </div>
         <h1 style="margin-bottom: 10px;">Gestor Financeiro</h1>
-        <p style="color: gray; margin-bottom: 30px;">Versão V34 - Controle Total</p>
+        <p style="color: gray; margin-bottom: 30px;">Versão V35 - Edição em Massa</p>
         <button id="btn-login" style="background: var(--ios-blue); color: white; padding: 15px 30px; border-radius: 12px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px;">
             <i class="fa-brands fa-google"></i> Entrar com Google
         </button>
@@ -62,7 +62,7 @@
                 <div class="income-wrapper">
                     <span style="font-size:20px; font-weight:600; color:#8E8E93;">R$</span>
                     <input type="text" id="monthly-income" placeholder="0,00" readonly style="color: var(--ios-green); cursor: default;">
-                    <button id="btn-manage-income" class="btn-icon-action" style="background:var(--ios-blue); color:white;" title="Gerenciar Fontes de Renda">
+                    <button id="btn-manage-income" class="btn-icon-action" style="background:var(--ios-blue); color:white;" title="Gerenciar Rendas">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
                 </div>
@@ -108,10 +108,17 @@
         <div id="category-summary-area" class="cat-summary-grid">
             </div>
 
-        <div class="collapsible-header" onclick="toggleSection('output', 'icon-list')">
-            <span>Extrato Detalhado</span>
-            <i id="icon-list" class="fa-solid fa-chevron-up"></i>
+        <div class="section-header-wrapper">
+            <div class="collapsible-header" onclick="toggleSection('output', 'icon-list')" style="flex-grow: 1; margin-bottom: 0;">
+                <span>Extrato Detalhado</span>
+                <i id="icon-list" class="fa-solid fa-chevron-up"></i>
+            </div>
+            
+            <button id="btn-toggle-edit" class="btn-toggle-edit" title="Ativar/Desativar Edição em Massa">
+                <i class="fa-solid fa-pen-to-square"></i>
+            </button>
         </div>
+        
         <div id="output" class="list-area">
             </div>
 
@@ -132,8 +139,7 @@
                     <input type="text" id="new-cat-name" placeholder="Nova Categoria..." class="input-modern">
                     <button id="btn-add-cat" class="btn-small-blue">Criar</button>
                 </div>
-                <div id="categories-list" class="categories-list">
-                    </div>
+                <div id="categories-list" class="categories-list"></div>
             </div>
         </div>
     </div>
@@ -190,7 +196,6 @@
             </div>
             <div class="modal-body">
                 <div class="income-total-display" id="modal-income-total">R$ 0,00</div>
-                
                 <div class="row-2">
                     <div class="form-group">
                         <label class="form-label">Fonte (Ex: Salário)</label>
@@ -202,10 +207,8 @@
                     </div>
                 </div>
                 <button id="btn-add-income-item" class="btn-block btn-primary" style="background:var(--ios-green);">+ Adicionar Renda</button>
-
                 <div class="form-label" style="margin-top:20px; margin-bottom:10px;">Rendas Cadastradas:</div>
-                <div id="income-list-area" class="income-list">
-                    </div>
+                <div id="income-list-area" class="income-list"></div>
             </div>
         </div>
     </div>
@@ -221,14 +224,12 @@
                     <label class="form-label">Mês de Referência</label>
                     <input type="month" id="import-ref-month" class="form-input">
                 </div>
-                
                 <div class="form-group" style="margin-top:20px;">
                     <label for="fileInput" class="btn-block btn-primary" style="text-align: center; display: block; cursor: pointer;">
                         <i class="fa-solid fa-file-arrow-up"></i> Selecionar Arquivo TXT
                     </label>
                     <input type="file" id="fileInput" accept=".txt" style="display: none;">
                 </div>
-
                 <p style="text-align: center; color: #8E8E93; font-size: 12px; margin-top: 15px;">
                     Selecione o arquivo .txt exportado do Banco do Brasil.
                 </p>

@@ -732,3 +732,102 @@ body {
     from { opacity: 0; transform: translateY(-5px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* --- Cabeçalho da Seção com Botão Extra --- */
+.section-header-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-right: 20px; /* Alinha com o grid */
+    margin-bottom: 5px;
+}
+
+/* Botão de Toggle Edição */
+.btn-toggle-edit {
+    background: none;
+    border: none;
+    color: var(--ios-blue);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 8px;
+    transition: 0.2s;
+}
+
+.btn-toggle-edit:hover { background: #E5E5EA; }
+.btn-toggle-edit.active { background: var(--ios-blue); color: white; }
+
+/* --- Inputs dentro da Lista (Modo Edição) --- */
+.edit-input {
+    width: 100%;
+    border: 1px solid #E5E5EA;
+    background: #fff;
+    padding: 6px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 2px;
+    font-family: var(--ios-font);
+}
+
+.edit-select {
+    width: 100%;
+    border: 1px solid #E5E5EA;
+    background: #F2F2F7;
+    padding: 4px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ios-blue);
+}
+
+.btn-row-delete {
+    background: #FFE5E5;
+    color: var(--ios-red);
+    border: none;
+    border-radius: 6px;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    margin-left: 5px;
+}
+
+/* Ajuste de layout para linha em edição */
+.tx-row-edit {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+/* --- Barra de Salvar (Modo Edição) --- */
+.save-edit-bar {
+    padding: 20px 0;
+    text-align: center;
+    animation: fadeIn 0.3s ease;
+}
+
+.btn-finish-edit {
+    background-color: var(--ios-green);
+    color: white;
+    width: 100%;
+    padding: 15px;
+    border-radius: 12px;
+    border: none;
+    font-size: 16px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(52, 199, 89, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: transform 0.2s;
+}
+
+.btn-finish-edit:active {
+    transform: scale(0.98);
+}
