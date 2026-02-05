@@ -1,6 +1,4 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-
-// AQUI ESTAVA O ERRO: onAuthStateChanged precisa estar nesta lista
 import { 
     getAuth, 
     signInWithPopup, 
@@ -8,7 +6,6 @@ import {
     signOut, 
     onAuthStateChanged 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { firebaseConfig, DEFAULT_RULES } from './config.js';
 import { appState } from './state.js';
@@ -27,6 +24,7 @@ export async function saveToFirebase() {
         await updateDoc(userDocRef, { 
             transactions: appState.transactions, 
             incomeDetails: appState.incomeDetails, 
+            monthlyBudgets: appState.monthlyBudgets || {},
             categoryRules: appState.categoryRules,
             categoryColors: appState.categoryColors || {}
         });
@@ -40,6 +38,7 @@ export function startRealtimeListener(uid, renderCallback) {
             const data = docSnap.data();
             appState.transactions = data.transactions || [];
             appState.incomeDetails = data.incomeDetails || {};
+            appState.monthlyBudgets = data.monthlyBudgets || {};
             appState.categoryColors = data.categoryColors || {};
             
             if (data.monthlyIncomes && Object.keys(appState.incomeDetails).length === 0) {
@@ -54,7 +53,13 @@ export function startRealtimeListener(uid, renderCallback) {
 
             if (!appState.isEditMode && renderCallback) renderCallback();
         } else {
-            setDoc(userDocRef, { transactions: [], incomeDetails: {}, categoryRules: JSON.parse(JSON.stringify(DEFAULT_RULES)), categoryColors: {} });
+            setDoc(userDocRef, { 
+                transactions: [], 
+                incomeDetails: {}, 
+                monthlyBudgets: {},
+                categoryRules: JSON.parse(JSON.stringify(DEFAULT_RULES)), 
+                categoryColors: {} 
+            });
         }
     });
 }

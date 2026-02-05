@@ -1,29 +1,43 @@
-/**
- * MAIN - PONTO DE ENTRADA
- */
 import { auth, signInWithPopup, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase } from './firebase.js';
 import { appState } from './state.js';
 import { initViewSelector, filterAndRender, renderIncomeList, renderCategoryManager } from './ui.js';
 import { parseFileContent, lockBodyScroll, unlockBodyScroll, vibrate } from './utils.js';
 
-// --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Configura Datas
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     if(document.getElementById('import-ref-month')) document.getElementById('import-ref-month').value = `${yyyy}-${mm}`;
     if(document.getElementById('manual-date')) document.getElementById('manual-date').value = `${yyyy}-${mm}-${String(today.getDate()).padStart(2,'0')}`;
 
-    // 2. Auth
     const btnLogin = document.getElementById('btn-login');
     if(btnLogin) btnLogin.addEventListener('click', () => { vibrate(); signInWithPopup(auth); });
 
-    // 3. Menus e Controles
     document.getElementById('view-month').addEventListener('change', (e) => {
         appState.currentViewMonth = e.target.value;
         filterAndRender();
     });
+    
+    // --- LISTENER DA MÁSCARA DE ORÇAMENTO ---
+    const budgetInput = document.getElementById('month-budget');
+    if (budgetInput) {
+        budgetInput.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/\D/g, "");
+            if (value === "") { e.target.value = ""; return; }
+            value = (parseInt(value) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            e.target.value = value;
+        });
+        budgetInput.addEventListener('change', (e) => {
+            const cleanValue = parseFloat(e.target.value.replace(/\./g, '').replace(',', '.'));
+            const month = appState.currentViewMonth;
+            if (month && month !== "ALL") {
+                if (isNaN(cleanValue) || cleanValue < 0) { delete appState.monthlyBudgets[month]; } else { appState.monthlyBudgets[month] = cleanValue; }
+                saveToFirebase();
+                filterAndRender();
+            }
+        });
+    }
+
     document.getElementById('fileInput').addEventListener('change', (e) => handleFileUpload(e.target.files[0]));
 
     const btnToggleMenu = document.getElementById('btn-toggle-menu');
@@ -34,15 +48,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-logout').addEventListener('click', () => signOut(auth));
     document.getElementById('btn-delete-month').addEventListener('click', () => { vibrate(100); deleteCurrentMonth(); });
 
-    // 4. Seções Expansíveis (SUBSTITUI OS ONCLICK DO HTML)
     document.getElementById('btn-col-chart').addEventListener('click', () => window.toggleSection('chart-wrapper', 'icon-chart'));
     document.getElementById('btn-col-cat').addEventListener('click', () => window.toggleSection('category-summary-area', 'icon-cat'));
     document.getElementById('btn-col-list').addEventListener('click', () => window.toggleSection('output', 'icon-list'));
 
-    // 5. Botão de Edição
     document.getElementById('btn-toggle-edit').addEventListener('click', () => { vibrate(); window.toggleEditMode(); });
 
-    // 6. Modais
     setupModal('import-modal', 'btn-open-import', 'btn-close-import', () => {
         if(appState.currentViewMonth && appState.currentViewMonth !== "ALL") document.getElementById('import-ref-month').value = appState.currentViewMonth;
     });
@@ -59,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-add-income-item').addEventListener('click', () => { vibrate(); addIncomeItem(); });
 });
 
-// Helper de Modal
 function setupModal(modalId, openBtnId, closeBtnId, openCallback) {
     const modal = document.getElementById(modalId);
     if(document.getElementById(openBtnId)) {
@@ -78,21 +88,15 @@ function setupModal(modalId, openBtnId, closeBtnId, openCallback) {
     }
 }
 
-// --- LISTENER DE AUTH (CORRIGIDO PARA INICIAR DADOS) ---
 onAuthStateChanged(auth, (user) => {
     if (user) {
         appState.user = user;
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app-screen').style.display = 'block';
-        
-        // CORREÇÃO AQUI:
-        // Antes estava chamando apenas initViewSelector()
-        // Agora chamamos filterAndRender() logo em seguida para preencher a tela
         startRealtimeListener(user.uid, () => {
-            initViewSelector();  // 1. Cria as opções do Select
-            filterAndRender();   // 2. FORÇA O DESENHO DA TELA COM OS DADOS
+            initViewSelector();
+            filterAndRender();
         });
-        
     } else {
         appState.user = null;
         document.getElementById('login-screen').style.display = 'flex';
@@ -100,17 +104,13 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// ============================================================================
-// FUNÇÕES GLOBAIS (Necessárias para o HTML dinâmico do ui.js)
-// ============================================================================
-
+// Funções Globais
 window.toggleSection = (sectionId, iconId) => {
     vibrate(20);
     const section = document.getElementById(sectionId);
     const icon = document.getElementById(iconId);
     if (section && icon) { section.classList.toggle('collapsed-content'); icon.classList.toggle('icon-closed'); }
 };
-
 window.toggleEditMode = () => {
     appState.isEditMode = !appState.isEditMode;
     const btn = document.getElementById('btn-toggle-edit');
@@ -122,7 +122,6 @@ window.toggleEditMode = () => {
     }
     filterAndRender();
 };
-
 window.updateTx = (id, field, value) => {
     const tx = appState.transactions.find(t => t.id === id);
     if (!tx) return;
@@ -138,7 +137,6 @@ window.updateTx = (id, field, value) => {
     }
     saveToFirebase();
 };
-
 window.deleteTransaction = (id) => {
     if(confirm("Excluir item?")) {
         appState.transactions = appState.transactions.filter(t => t.id !== id);
@@ -148,73 +146,36 @@ window.deleteTransaction = (id) => {
         filterAndRender();
     }
 };
-
 window.editTransaction = (id) => {
     if(appState.isEditMode) return;
     const tx = appState.transactions.find(t => t.id === id);
-    if(tx) { 
-        vibrate();
-        openManualModal(tx); 
-        document.getElementById('manual-modal').style.display = 'flex';
-        lockBodyScroll();
-    }
+    if(tx) { vibrate(); openManualModal(tx); document.getElementById('manual-modal').style.display = 'flex'; lockBodyScroll(); }
 };
-
 window.removeIncome = (index) => {
     const month = appState.currentViewMonth;
-    if(appState.incomeDetails[month]) {
-        vibrate();
-        appState.incomeDetails[month].splice(index, 1);
-        saveToFirebase();
-        renderIncomeList();
-        filterAndRender();
-    }
+    if(appState.incomeDetails[month]) { vibrate(); appState.incomeDetails[month].splice(index, 1); saveToFirebase(); renderIncomeList(); filterAndRender(); }
 };
-
 window.addKeyword = (cat, word) => {
-    if(!appState.categoryRules[cat].includes(word)) {
-        appState.categoryRules[cat].push(word);
-        saveToFirebase();
-        renderCategoryManager();
-    }
+    if(!appState.categoryRules[cat].includes(word)) { appState.categoryRules[cat].push(word); saveToFirebase(); renderCategoryManager(); }
 };
 window.removeKeyword = (cat, word) => {
-    appState.categoryRules[cat] = appState.categoryRules[cat].filter(w => w !== word);
-    saveToFirebase();
-    renderCategoryManager();
+    appState.categoryRules[cat] = appState.categoryRules[cat].filter(w => w !== word); saveToFirebase(); renderCategoryManager();
 };
 window.deleteCategory = (cat) => {
-    if(confirm(`Excluir categoria "${cat}"?`)) {
-        delete appState.categoryRules[cat];
-        if(appState.categoryColors && appState.categoryColors[cat]) delete appState.categoryColors[cat];
-        saveToFirebase();
-        renderCategoryManager();
-    }
+    if(confirm(`Excluir categoria "${cat}"?`)) { delete appState.categoryRules[cat]; if(appState.categoryColors && appState.categoryColors[cat]) delete appState.categoryColors[cat]; saveToFirebase(); renderCategoryManager(); }
 };
 window.updateCategoryColor = (cat, newColor) => {
-    vibrate();
-    appState.categoryColors[cat] = newColor;
-    saveToFirebase();
-    filterAndRender();
+    vibrate(); appState.categoryColors[cat] = newColor; saveToFirebase(); filterAndRender();
 };
 window.renameCategory = (oldName, newName) => {
     newName = newName.trim();
     if (!newName || newName === oldName) return;
-    if (appState.categoryRules[newName]) {
-        alert("Já existe uma categoria com este nome.");
-        renderCategoryManager();
-        return;
-    }
+    if (appState.categoryRules[newName]) { alert("Já existe uma categoria com este nome."); renderCategoryManager(); return; }
     if (confirm(`Renomear "${oldName}" para "${newName}"?`)) {
         vibrate();
         appState.categoryRules[newName] = [...appState.categoryRules[oldName]];
-        if (appState.categoryColors[oldName]) {
-            appState.categoryColors[newName] = appState.categoryColors[oldName];
-            delete appState.categoryColors[oldName];
-        }
-        appState.transactions.forEach(t => {
-            if (t.category === oldName) t.category = newName;
-        });
+        if (appState.categoryColors[oldName]) { appState.categoryColors[newName] = appState.categoryColors[oldName]; delete appState.categoryColors[oldName]; }
+        appState.transactions.forEach(t => { if (t.category === oldName) t.category = newName; });
         delete appState.categoryRules[oldName];
         saveToFirebase();
         renderCategoryManager();
@@ -223,10 +184,6 @@ window.renameCategory = (oldName, newName) => {
         renderCategoryManager();
     }
 };
-
-// ============================================================================
-// LÓGICA DE NEGÓCIO INTERNA
-// ============================================================================
 
 async function handleFileUpload(file) {
     if(!file) return;
@@ -254,6 +211,7 @@ function deleteCurrentMonth() {
     if(confirm(`ATENÇÃO: Apagar dados de ${appState.currentViewMonth}?`)) {
         appState.transactions = appState.transactions.filter(t => t.billMonth !== appState.currentViewMonth);
         delete appState.incomeDetails[appState.currentViewMonth];
+        if (appState.monthlyBudgets[appState.currentViewMonth]) delete appState.monthlyBudgets[appState.currentViewMonth];
         saveToFirebase();
     }
 }
@@ -270,10 +228,7 @@ function saveManualTransaction() {
     if(!desc || !valStr || !dateStr) { alert("Preencha todos os campos!"); return; }
     let amount = parseFloat(valStr);
     if (type === 'credit') amount = -Math.abs(amount); else amount = Math.abs(amount);
-    
-    const [y, m, d] = dateStr.split('-');
-    const formattedDate = `${d}.${m}.${y}`;
-    const billMonth = `${y}-${m}`;
+    const [y, m, d] = dateStr.split('-'); const formattedDate = `${d}.${m}.${y}`; const billMonth = `${y}-${m}`;
 
     if(editId) {
         const index = appState.transactions.findIndex(t => t.id === editId);

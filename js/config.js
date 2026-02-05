@@ -1,7 +1,3 @@
-/**
- * CONFIGURAÇÕES E CONSTANTES
- */
-
 export const firebaseConfig = {
     apiKey: "AIzaSyC4g1Vh3QrqgF4Z026YdfkPH6nNSBsMFj0",
     authDomain: "orcamento-96cae.firebaseapp.com",

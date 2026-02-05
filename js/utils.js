@@ -1,28 +1,11 @@
-/**
- * UTILITÁRIOS E HELPERS
- */
-
 // --- Mobile First Features ---
-
-// Feedback tátil (vibração)
 export function vibrate(ms = 50) {
-    if (navigator.vibrate) {
-        navigator.vibrate(ms);
-    }
+    if (navigator.vibrate) navigator.vibrate(ms);
 }
-
-// Bloqueia rolagem do fundo (para modais)
-export function lockBodyScroll() {
-    document.body.style.overflow = 'hidden';
-}
-
-// Libera rolagem
-export function unlockBodyScroll() {
-    document.body.style.overflow = '';
-}
+export function lockBodyScroll() { document.body.style.overflow = 'hidden'; }
+export function unlockBodyScroll() { document.body.style.overflow = ''; }
 
 // --- Formatadores ---
-
 export function formatBRL(v) {
     return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -45,12 +28,10 @@ export function detectCategory(description, categoryRules) {
     return "Outros";
 }
 
-// --- Parsers ---
-
+// --- Parser de Arquivo ---
 export function parseFileContent(text, billMonth, existingTransactions, categoryRules) {
     const cleanText = text.replace(/[\r\n]+/g, ' '); 
     const regexBB = /(\d{2}[\/\.]\d{2}[\/\.]\d{4})(.*?)(?:R\$\s*)?(-?[\d\.]+,\d{2})/g;
-    
     let match;
     let count = 0;
     const newTransactions = [];
@@ -66,8 +47,6 @@ export function parseFileContent(text, billMonth, existingTransactions, category
         if (upperDesc.includes("PGTO")) continue;
 
         const cat = detectCategory(desc, categoryRules);
-
-        // Verifica duplicatas
         const exists = existingTransactions.some(t => t.description === desc && t.amount === val && t.date === dateRaw && t.billMonth === billMonth) ||
                        newTransactions.some(t => t.description === desc && t.amount === val && t.date === dateRaw);
 
