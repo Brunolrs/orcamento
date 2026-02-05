@@ -21,3 +21,5 @@ export const DEFAULT_RULES = {
 };
 
 export const CHART_COLORS = ['#1C1C1E', '#FF3B30', '#FF9500', '#FFCC00', '#34C759', '#5856D6', '#AF52DE', '#8E8E93', '#007AFF'];
+
+
