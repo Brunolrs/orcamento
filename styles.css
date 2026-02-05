@@ -1,28 +1,28 @@
 /* ==========================================================================
    1. VARIÁVEIS GLOBAIS (DESIGN SYSTEM iOS)
-   Definição de cores, fontes e espaçamentos padrão para consistência.
+   Definição de cores, fontes e espaçamentos padrão.
    ========================================================================== */
 :root {
     /* Cores de Fundo e Superfície */
-    --ios-bg: #F2F2F7;       /* Fundo cinza claro padrão do iOS */
-    --ios-card: #FFFFFF;     /* Branco puro para cartões e modais */
+    --ios-bg: #F2F2F7;       /* Fundo cinza claro padrão iOS */
+    --ios-card: #FFFFFF;     /* Branco puro para cartões */
     
     /* Cores de Texto */
     --ios-text: #000000;     /* Preto principal */
-    --ios-text-sec: #8E8E93; /* Cinza secundário (legendas, datas) */
+    --ios-text-sec: #8E8E93; /* Cinza secundário */
     
     /* Cores Semânticas */
-    --ios-blue: #007AFF;     /* Cor de ação principal (botões, links) */
+    --ios-blue: #007AFF;     /* Ação Principal */
     --ios-green: #34C759;    /* Sucesso / Receitas */
-    --ios-red: #FF3B30;      /* Erro / Despesas / Ações destrutivas */
+    --ios-red: #FF3B30;      /* Perigo / Despesas */
     
     /* Tipografia */
     --ios-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     
     /* Bordas e Sombras */
-    --radius-l: 24px;        /* Arredondamento grande (Cards, Header) */
-    --radius-m: 16px;        /* Arredondamento médio (Modais, Inputs) */
-    --radius-s: 8px;         /* Arredondamento pequeno (Botões internos) */
+    --radius-l: 24px;        /* Bordas grandes (Cards, Header) */
+    --radius-m: 16px;        /* Bordas médias (Modais, Inputs) */
+    --radius-s: 8px;         /* Bordas pequenas (Ícones, Tags) */
     --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.06);
 }
 
@@ -34,15 +34,16 @@
     margin: 0;
     padding: 0;
     outline: none;
-    -webkit-tap-highlight-color: transparent; /* Remove highlight azul ao tocar no mobile */
+    -webkit-tap-highlight-color: transparent; /* Remove highlight azul no mobile */
 }
 
 body {
     font-family: var(--ios-font);
     background-color: var(--ios-bg);
     color: var(--ios-text);
-    /* Padding inferior para garantir que o conteúdo não fique atrás do botão flutuante */
-    padding-bottom: 120px; 
+    min-height: 100vh;
+    /* Espaço extra no fundo para a barra de gestos do iPhone e botão flutuante */
+    padding-bottom: calc(120px + env(safe-area-inset-bottom));
 }
 
 /* ==========================================================================
@@ -50,12 +51,16 @@ body {
    ========================================================================== */
 .header-container {
     background: var(--ios-card);
-    padding: 20px 20px 25px 20px;
+    /* Padding topo respeita o "notch" da câmera */
+    padding-top: calc(20px + env(safe-area-inset-top)); 
+    padding-left: 20px;
+    padding-right: 20px;
+    padding-bottom: 25px;
     border-bottom-left-radius: var(--radius-l);
     border-bottom-right-radius: var(--radius-l);
     box-shadow: var(--shadow-soft);
     margin-bottom: 25px;
-    position: relative; /* Contexto de posicionamento para o dropdown */
+    position: relative;
 }
 
 .top-bar {
@@ -72,7 +77,7 @@ body {
     letter-spacing: -0.5px;
 }
 
-/* --- Menu Dropdown (Configurações) --- */
+/* --- Menu Dropdown --- */
 .settings-container {
     position: relative;
 }
@@ -89,15 +94,13 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.2s, transform 0.2s;
+    transition: background 0.2s;
 }
 
 .btn-icon-header:hover {
     background: #E5E5EA;
-    transform: scale(1.05);
 }
 
-/* O Menu Flutuante */
 .dropdown-menu {
     position: absolute;
     top: 50px;
@@ -114,10 +117,7 @@ body {
     animation: fadeIn 0.2s ease;
 }
 
-/* Classe ativada via JS para exibir o menu */
-.dropdown-menu.show {
-    display: flex;
-}
+.dropdown-menu.show { display: flex; }
 
 .dropdown-item {
     width: 100%;
@@ -132,26 +132,12 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
-    transition: background 0.2s;
 }
 
-.dropdown-item:hover {
-    background: #F9F9F9;
-}
+.dropdown-item:active { background: #F2F2F7; }
 
-.dropdown-item i {
-    width: 20px;
-    text-align: center;
-    font-size: 16px;
-}
+.dropdown-divider { height: 1px; background: #F0F0F0; margin: 0; }
 
-.dropdown-divider {
-    height: 1px;
-    background: #F0F0F0;
-    margin: 0;
-}
-
-/* Utilitários de cor para ícones do menu */
 .text-blue { color: var(--ios-blue); }
 .text-red { color: var(--ios-red); }
 
@@ -166,7 +152,7 @@ body {
     color: var(--ios-text);
     cursor: pointer;
     text-align: right;
-    outline: none;
+    height: 40px; /* Altura confortável para toque */
 }
 
 /* ==========================================================================
@@ -202,10 +188,9 @@ body {
     max-width: 250px;
     color: var(--ios-text);
     text-align: center;
-    cursor: default; /* Indica que é leitura (abre modal ao clicar no botão) */
+    cursor: default;
 }
 
-/* Botão pequeno ao lado da renda */
 .btn-icon-action {
     background: #E5E5EA;
     border: none;
@@ -217,21 +202,14 @@ body {
     align-items: center;
     justify-content: center;
     color: var(--ios-text-sec);
-    transition: 0.2s;
-    font-size: 14px;
-}
-
-.btn-icon-action:hover {
-    background: #d1d1d6;
-    color: var(--ios-text);
 }
 
 /* ==========================================================================
-   5. DASHBOARD (RESUMO FINANCEIRO)
+   5. DASHBOARD (CARDS)
    ========================================================================== */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr; /* 2 colunas iguais */
+    grid-template-columns: 1fr 1fr;
     gap: 15px;
     padding: 0 20px;
     margin-bottom: 20px;
@@ -252,19 +230,16 @@ body {
     color: var(--ios-text-sec);
     text-transform: uppercase;
     font-weight: 700;
-    letter-spacing: 0.5px;
 }
 
 .card-value {
     font-size: 18px;
     font-weight: 700;
     margin-top: 5px;
-    letter-spacing: -0.5px;
 }
 
-/* Card Preto de Destaque (Líquido) */
 .highlight-card {
-    background: var(--ios-text); /* Fundo preto */
+    background: var(--ios-text); /* Preto */
     color: white;
     margin: 0 20px 20px 20px;
     padding: 25px;
@@ -275,23 +250,12 @@ body {
     align-items: center;
 }
 
-.highlight-card .label {
-    opacity: 0.7;
-    font-size: 11px;
-    text-transform: uppercase;
-    font-weight: 600;
-    margin-bottom: 5px;
-}
-
-.highlight-card .value {
-    font-size: 26px;
-    font-weight: 800;
-}
-
+.highlight-card .label { opacity: 0.7; font-size: 11px; text-transform: uppercase; font-weight: 600; margin-bottom: 5px; }
+.highlight-card .value { font-size: 26px; font-weight: 800; }
 .val-refund { color: var(--ios-green); }
 
 /* ==========================================================================
-   6. SEÇÕES EXPANSÍVEIS (COLLAPSIBLE)
+   6. SEÇÕES EXPANSÍVEIS E CABEÇALHOS
    ========================================================================== */
 .collapsible-header {
     display: flex;
@@ -304,40 +268,53 @@ body {
     color: var(--ios-text-sec);
     cursor: pointer;
     user-select: none;
-    transition: color 0.2s;
 }
 
-.collapsible-header:hover {
-    color: var(--ios-blue);
-}
+.collapsible-header:active { opacity: 0.6; } /* Feedback visual de toque */
+.collapsible-header i { transition: transform 0.3s ease; }
 
-.collapsible-header i {
-    transition: transform 0.3s ease; /* Animação da seta girando */
-}
-
-/* Classes utilitárias JS */
 .collapsed-content { display: none !important; }
 .icon-closed { transform: rotate(180deg); }
 
+/* Wrapper para o título + botão de editar lista */
+.section-header-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-right: 20px;
+    margin-bottom: 5px;
+}
+
+/* Botão Toggle Edit (Lápis) */
+.btn-toggle-edit {
+    background: none;
+    border: none;
+    color: var(--ios-blue);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 8px 12px; /* Área de toque maior */
+    border-radius: 8px;
+    transition: 0.2s;
+}
+
+.btn-toggle-edit.active { background: var(--ios-blue); color: white; }
+
 /* ==========================================================================
-   7. GRÁFICO
+   7. GRÁFICOS E RESUMOS
    ========================================================================== */
 .chart-box {
     background: var(--ios-card);
     margin: 0 20px 20px 20px;
     padding: 20px;
     border-radius: 20px;
-    height: 280px; /* Altura fixa para manter proporção */
+    height: 280px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
     position: relative;
 }
 
-/* ==========================================================================
-   8. RESUMO POR CATEGORIA (GRID)
-   ========================================================================== */
 .cat-summary-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr); /* 2 colunas */
+    grid-template-columns: repeat(2, 1fr);
     gap: 10px;
     padding: 0 20px 20px 20px;
     animation: fadeIn 0.3s ease;
@@ -353,60 +330,18 @@ body {
     gap: 5px;
 }
 
-.cat-sum-header {
-    display: flex;
-    justify-content: space-between;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--ios-text-sec);
-    text-transform: uppercase;
-}
-
-.cat-sum-val {
-    font-size: 16px;
-    font-weight: 800;
-    color: var(--ios-text);
-}
-
-.cat-progress-bg {
-    width: 100%;
-    height: 6px;
-    background: #F2F2F7;
-    border-radius: 3px;
-    margin-top: 5px;
-    overflow: hidden;
-}
-
-.cat-progress-bar {
-    height: 100%;
-    background: var(--ios-blue);
-    border-radius: 3px;
-}
+.cat-sum-header { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: var(--ios-text-sec); text-transform: uppercase; }
+.cat-sum-val { font-size: 16px; font-weight: 800; color: var(--ios-text); }
+.cat-progress-bg { width: 100%; height: 6px; background: #F2F2F7; border-radius: 3px; margin-top: 5px; overflow: hidden; }
+.cat-progress-bar { height: 100%; background: var(--ios-blue); border-radius: 3px; }
 
 /* ==========================================================================
-   9. LISTA DE TRANSAÇÕES (EXTRATO DETALHADO - VISUAL LIMPO V34)
+   8. LISTA DE TRANSAÇÕES
    ========================================================================== */
-.list-area {
-    padding: 0 20px;
-}
-
-.cat-group {
-    margin-bottom: 20px;
-}
-
-.cat-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 8px;
-    padding: 0 5px;
-}
-
-.cat-name {
-    font-size: 11px;
-    font-weight: 800;
-    color: var(--ios-text-sec);
-    text-transform: uppercase;
-}
+.list-area { padding: 0 20px; }
+.cat-group { margin-bottom: 20px; }
+.cat-header { display: flex; justify-content: space-between; margin-bottom: 8px; padding: 0 5px; }
+.cat-name { font-size: 11px; font-weight: 800; color: var(--ios-text-sec); text-transform: uppercase; }
 
 .list-box {
     background: var(--ios-card);
@@ -415,419 +350,197 @@ body {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
 }
 
-/* Item da Lista (Linha de Transação) */
+/* Item da Lista (Linha Normal) */
 .tx-item {
     padding: 12px 16px;
     border-bottom: 1px solid #F7F7F7;
-    cursor: pointer; /* Indica interatividade */
-    transition: background-color 0.2s;
+    cursor: pointer;
+    transition: background-color 0.1s;
 }
 
-.tx-item:last-child {
-    border-bottom: none;
-}
+.tx-item:last-child { border-bottom: none; }
+.tx-item:active { background-color: #F2F2F7; }
 
-.tx-item:active {
-    background-color: #F2F2F7; /* Feedback de clique */
-}
-
-.tx-row-main {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-}
-
-/* Lado Esquerdo: Descrição e Data */
-.tx-main {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    flex: 1; /* Ocupa espaço disponível */
-    padding-right: 10px;
-}
-
-.tx-desc {
-    font-size: 15px;
-    font-weight: 500;
-    color: var(--ios-text);
-    /* Tratamento de texto longo */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 200px;
-}
-
-.tx-date {
-    font-size: 11px;
-    color: var(--ios-text-sec);
-}
-
-/* Lado Direito: Valor e Ações */
-.tx-side {
-    text-align: right;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
-    min-width: 100px;
-}
-
-.tx-val {
-    font-size: 15px;
-    font-weight: 700;
-}
-
+.tx-row-main { display: flex; justify-content: space-between; align-items: flex-start; }
+.tx-main { display: flex; flex-direction: column; gap: 3px; flex: 1; padding-right: 10px; }
+.tx-desc { font-size: 15px; font-weight: 500; color: var(--ios-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.tx-date { font-size: 11px; color: var(--ios-text-sec); }
+.tx-side { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 90px; }
+.tx-val { font-size: 15px; font-weight: 700; }
 .color-pos { color: var(--ios-green); }
 .color-neg { color: var(--ios-text); }
+.cat-row-info { display: flex; align-items: center; justify-content: flex-end; margin-top: 4px; }
+.tx-cat-label { font-size: 10px; color: #8E8E93; text-transform: uppercase; font-weight: 700; }
 
-/* Linha de Categoria e Editar (V34) */
-.cat-row-info {
+/* Item da Lista (Modo Edição) */
+.tx-row-edit {
     display: flex;
-    align-items: center;
-    justify-content: flex-end;
+    flex-wrap: wrap; /* Permite quebrar em telas pequenas */
     gap: 8px;
-    margin-top: 4px;
+    align-items: center;
 }
 
-.tx-cat-label {
-    font-size: 10px;
-    color: #8E8E93;
-    text-transform: uppercase;
-    font-weight: 700;
+/* Inputs da Edição em Massa */
+.edit-input, .edit-select {
+    width: 100%;
+    border: 1px solid #E5E5EA;
+    background: #fff;
+    padding: 0 10px;
+    border-radius: 12px;
+    font-size: 16px !important; /* Evita Zoom no iPhone */
+    height: 44px; /* Altura de toque confortável */
+    margin-bottom: 4px;
+    font-family: var(--ios-font);
 }
 
-.tx-edit-link {
-    font-size: 11px;
-    color: var(--ios-blue);
-    font-weight: 600;
-    background: none;
+.edit-select { background: #F2F2F7; color: var(--ios-blue); font-weight: 600; font-size: 14px !important; }
+
+/* Botão de Excluir Linha */
+.btn-row-delete {
+    background: #FFE5E5;
+    color: var(--ios-red);
     border: none;
+    border-radius: 12px;
+    width: 44px;
+    height: 44px;
     cursor: pointer;
-    padding: 2px 0;
     display: flex;
     align-items: center;
-    gap: 3px;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0; /* Não esmaga */
 }
 
-.tx-edit-link:hover {
-    text-decoration: underline;
+/* Barra de Salvar (Final da Lista) */
+.save-edit-bar { padding: 20px 0; text-align: center; animation: fadeIn 0.3s ease; }
+.btn-finish-edit {
+    background-color: var(--ios-green);
+    color: white; width: 100%; padding: 15px;
+    border-radius: 12px; border: none; font-size: 16px; font-weight: 800;
+    cursor: pointer; box-shadow: 0 4px 12px rgba(52, 199, 89, 0.3);
+    display: flex; align-items: center; justify-content: center; gap: 10px;
 }
+.btn-finish-edit:active { transform: scale(0.98); }
 
 /* ==========================================================================
-   10. BOTÃO FLUTUANTE (FAB)
+   9. BOTÃO FLUTUANTE (FAB)
    ========================================================================== */
 .fab-add {
     position: fixed;
-    bottom: 30px;
+    /* Respeita a área segura inferior do iPhone */
+    bottom: calc(30px + env(safe-area-inset-bottom));
     right: 20px;
     background: var(--ios-blue);
     color: white;
-    width: 60px;
-    height: 60px;
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
     border: none;
-    font-size: 26px;
-    box-shadow: 0 4px 15px rgba(0, 122, 255, 0.4);
+    font-size: 28px;
+    box-shadow: 0 8px 20px rgba(0, 122, 255, 0.4);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100;
-    transition: transform 0.2s, background 0.2s;
-}
-
-.fab-add:hover {
-    transform: scale(1.05);
-    background: #0063CC;
-}
-
-/* ==========================================================================
-   11. MODAIS (GERAL)
-   ========================================================================== */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5); /* Fundo escuro semitransparente */
-    z-index: 200;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    backdrop-filter: blur(5px); /* Efeito Blur */
-}
-
-.modal-content {
-    background: white;
-    width: 90%;
-    max-width: 500px;
-    max-height: 85vh;
-    border-radius: 24px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    animation: slideUp 0.3s ease;
-}
-
-@keyframes slideUp {
-    from { transform: translateY(20px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-}
-
-.modal-header {
-    padding: 20px;
-    border-bottom: 1px solid #eee;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.modal-header h2 { font-size: 18px; margin: 0; }
-
-.close-btn {
-    background: none;
-    border: none;
-    font-size: 28px;
-    cursor: pointer;
-    color: #888;
-}
-
-.modal-body {
-    padding: 20px;
-    overflow-y: auto;
-}
-
-/* Estilos de Formulário dentro dos Modais */
-.form-group { margin-bottom: 15px; }
-
-.form-label {
-    display: block;
-    font-size: 12px;
-    color: #8E8E93;
-    margin-bottom: 5px;
-    font-weight: 600;
-}
-
-.form-input, .form-select {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid #E5E5EA;
-    border-radius: 12px;
-    font-size: 16px;
-    background: #F9F9F9;
-    outline: none;
-    transition: 0.2s;
-}
-
-.form-input:focus {
-    background: white;
-    border-color: var(--ios-blue);
-}
-
-.row-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-}
-
-.btn-block {
-    width: 100%;
-    padding: 15px;
-    border-radius: 12px;
-    border: none;
-    font-size: 16px;
-    font-weight: 700;
-    cursor: pointer;
-    margin-top: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
-
-.btn-primary {
-    background: var(--ios-blue);
-    color: white;
-}
-
-/* ==========================================================================
-   12. ESTILOS ESPECÍFICOS: LISTAS DENTRO DE MODAIS
-   ========================================================================== */
-
-/* Modal de Renda */
-.income-list {
-    margin-top: 10px;
-    max-height: 250px;
-    overflow-y: auto;
-}
-
-.income-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px;
-    border-bottom: 1px solid #f0f0f0;
-}
-
-.income-item:last-child { border-bottom: none; }
-
-.income-desc { font-weight: 500; }
-.income-val { font-weight: 700; color: var(--ios-green); margin-right: 10px; }
-
-.btn-del-income {
-    background: none; border: none; color: #ccc; cursor: pointer;
-}
-.btn-del-income:hover { color: var(--ios-red); }
-
-.income-total-display {
-    text-align: center;
-    font-size: 32px;
-    font-weight: 800;
-    color: var(--ios-green);
-    margin: 10px 0 20px 0;
-}
-
-/* Modal de Categorias */
-.new-cat-row { display: flex; gap: 10px; margin-bottom: 20px; }
-
-.btn-small-blue {
-    background: var(--ios-blue);
-    color: white; border: none; padding: 0 15px;
-    border-radius: 10px; cursor: pointer; font-weight: 600;
-}
-
-.cat-edit-item {
-    border: 1px solid #eee;
-    border-radius: 12px;
-    padding: 15px;
-    margin-bottom: 10px;
-}
-
-.cat-edit-header {
-    display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
-}
-
-.cat-name-display { font-weight: 700; color: var(--ios-blue); }
-
-.btn-delete-cat { color: var(--ios-red); background: none; border: none; cursor: pointer; font-size: 14px; }
-
-.keywords-area { display: flex; flex-wrap: wrap; gap: 5px; }
-
-.keyword-tag {
-    background: #F2F2F7; padding: 4px 8px; border-radius: 6px;
-    font-size: 11px; color: #333; display: flex; align-items: center; gap: 5px;
-}
-
-.keyword-remove { cursor: pointer; color: #999; font-weight: bold; }
-
-.keyword-add-input {
-    border: none; border-bottom: 1px solid #ddd; padding: 4px;
-    font-size: 12px; width: 100px; outline: none;
-}
-
-/* Animações de Entrada */
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-5px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* --- Cabeçalho da Seção com Botão Extra --- */
-.section-header-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-right: 20px; /* Alinha com o grid */
-    margin-bottom: 5px;
-}
-
-/* Botão de Toggle Edição */
-.btn-toggle-edit {
-    background: none;
-    border: none;
-    color: var(--ios-blue);
-    font-size: 18px;
-    cursor: pointer;
-    padding: 5px 10px;
-    border-radius: 8px;
-    transition: 0.2s;
-}
-
-.btn-toggle-edit:hover { background: #E5E5EA; }
-.btn-toggle-edit.active { background: var(--ios-blue); color: white; }
-
-/* --- Inputs dentro da Lista (Modo Edição) --- */
-.edit-input {
-    width: 100%;
-    border: 1px solid #E5E5EA;
-    background: #fff;
-    padding: 6px;
-    border-radius: 6px;
-    font-size: 13px;
-    margin-bottom: 2px;
-    font-family: var(--ios-font);
-}
-
-.edit-select {
-    width: 100%;
-    border: 1px solid #E5E5EA;
-    background: #F2F2F7;
-    padding: 4px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--ios-blue);
-}
-
-.btn-row-delete {
-    background: #FFE5E5;
-    color: var(--ios-red);
-    border: none;
-    border-radius: 6px;
-    width: 24px;
-    height: 24px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    margin-left: 5px;
-}
-
-/* Ajuste de layout para linha em edição */
-.tx-row-edit {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-}
-
-/* --- Barra de Salvar (Modo Edição) --- */
-.save-edit-bar {
-    padding: 20px 0;
-    text-align: center;
-    animation: fadeIn 0.3s ease;
-}
-
-.btn-finish-edit {
-    background-color: var(--ios-green);
-    color: white;
-    width: 100%;
-    padding: 15px;
-    border-radius: 12px;
-    border: none;
-    font-size: 16px;
-    font-weight: 800;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(52, 199, 89, 0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
     transition: transform 0.2s;
 }
 
-.btn-finish-edit:active {
-    transform: scale(0.98);
+.fab-add:active { transform: scale(0.95); }
+
+/* ==========================================================================
+   10. MODAIS (RESPONSIVOS)
+   ========================================================================== */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.5); z-index: 200;
+    display: flex; justify-content: center; align-items: center;
+    backdrop-filter: blur(5px);
+}
+
+.modal-content {
+    background: white; width: 90%; max-width: 500px; max-height: 85vh;
+    border-radius: 24px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    display: flex; flex-direction: column; overflow: hidden;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.modal-header {
+    padding: 20px; border-bottom: 1px solid #eee;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.modal-header h2 { font-size: 18px; margin: 0; }
+.close-btn { background: none; border: none; font-size: 28px; cursor: pointer; color: #888; padding: 10px; } /* Área de toque maior */
+
+.modal-body { padding: 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+/* Formulários */
+.form-group { margin-bottom: 15px; }
+.form-label { display: block; font-size: 12px; color: #8E8E93; margin-bottom: 5px; font-weight: 600; }
+.form-input, .form-select {
+    width: 100%; padding: 0 12px; border: 1px solid #E5E5EA;
+    border-radius: 12px; font-size: 16px !important; /* Evita Zoom */
+    height: 48px; background: #F9F9F9; outline: none;
+}
+.form-input:focus { background: white; border-color: var(--ios-blue); }
+
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.btn-block {
+    width: 100%; padding: 15px; border-radius: 12px; border: none;
+    font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 10px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 50px; /* Altura mínima toque */
+}
+.btn-primary { background: var(--ios-blue); color: white; }
+
+/* Estilos de Lista no Modal */
+.income-list { margin-top: 10px; max-height: 250px; overflow-y: auto; }
+.income-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #f0f0f0; }
+.income-val { font-weight: 700; color: var(--ios-green); margin-right: 10px; }
+.btn-del-income { background: none; border: none; color: #ccc; padding: 10px; } /* Toque maior */
+.btn-del-income:hover { color: var(--ios-red); }
+.income-total-display { text-align: center; font-size: 32px; font-weight: 800; color: var(--ios-green); margin: 10px 0 20px 0; }
+
+/* Categorias */
+.new-cat-row { display: flex; gap: 10px; margin-bottom: 20px; }
+.btn-small-blue { background: var(--ios-blue); color: white; border: none; padding: 0 20px; border-radius: 12px; font-weight: 600; }
+.cat-edit-item { border: 1px solid #eee; border-radius: 12px; padding: 15px; margin-bottom: 10px; }
+.cat-edit-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.cat-name-display { font-weight: 700; color: var(--ios-blue); }
+.btn-delete-cat { color: var(--ios-red); background: none; border: none; padding: 5px; font-size: 16px; }
+.keywords-area { display: flex; flex-wrap: wrap; gap: 8px; }
+.keyword-tag { background: #F2F2F7; padding: 6px 10px; border-radius: 8px; font-size: 12px; color: #333; display: flex; align-items: center; gap: 6px; }
+.keyword-add-input { border: none; border-bottom: 1px solid #ddd; padding: 8px; font-size: 14px; width: 120px; outline: none; }
+
+/* ==========================================================================
+   11. ADAPTAÇÃO PARA CELULARES (Bottom Sheet)
+   Em telas pequenas, os modais sobem do fundo.
+   ========================================================================== */
+@media (max-width: 480px) {
+    .modal-content {
+        width: 100%;
+        max-width: 100%;
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+        border-top-left-radius: 24px;
+        border-top-right-radius: 24px;
+        position: absolute;
+        bottom: 0;
+        max-height: 90vh; /* Quase tela cheia */
+        animation: slideUpMobile 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes slideUpMobile {
+        from { transform: translateY(100%); }
+        to { transform: translateY(0); }
+    }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
 }
