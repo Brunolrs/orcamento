@@ -1,8 +1,8 @@
 /**
- * ETL Processor - Com IA Integrada e Aprendizado Dinâmico
+ * ETL Processor - Com IA e Aprendizado Dinâmico
  */
-import { detectCategory } from './utils.js';
-import { categorizeWithAI } from './ai.js'; 
+import { detectCategory, extractKeyword } from './utils.js';
+import { categorizeWithAI } from './ai.js';
 
 function addMonthsToDate(dateStr, monthsToAdd) {
     const [d, m, y] = dateStr.split('.').map(Number);
@@ -20,7 +20,6 @@ export class InvoiceETL {
         this.transformedData = [];
         this.bankTotalTarget = 0;
         this.calculatedTotal = 0;
-        this.debugLog = [];
         this.newLearnedRules = {}; 
         
         this.knownHeaders = [
@@ -43,12 +42,11 @@ export class InvoiceETL {
             if (trimmed.includes("Total da fatura :")) {
                 const parts = trimmed.split(":");
                 if (parts.length > 1) {
-                    const valStr = parts[1].trim().replace("R$", "").trim().replace(/\./g, "").replace(",", ".");
-                    this.bankTotalTarget = parseFloat(valStr);
+                    this.bankTotalTarget = parseFloat(parts[1].trim().replace("R$", "").replace(/\./g, "").replace(",", "."));
                 }
             }
 
-            if (trimmed.includes("RESUMO EM REAL") || trimmed.includes("LIMITES - R$")) { stopReading = true; break; }
+            if (trimmed.includes("RESUMO EM REAL") || trimmed.includes("LIMITES")) { stopReading = true; break; }
             if (stopReading) continue;
 
             const isHeader = this.knownHeaders.some(h => trimmed.includes(h) && trimmed.length < 40 && !/\d/.test(trimmed));
@@ -80,11 +78,11 @@ export class InvoiceETL {
     learn(currentRules) {
         const rulesDelta = {};
         for (const item of this.extractedData) {
+            // Aprende apenas de seções confiáveis do banco (ex: Restaurantes)
             if (["Detectar", "Pagamentos", "Outros", "Outros lançamentos"].includes(item.section)) continue;
             
             const targetCat = item.section;
-            let keyword = item.description.toUpperCase().replace(/[0-9]/g, '').trim();
-            if(keyword.length > 20) keyword = keyword.substring(0, 20).trim();
+            let keyword = extractKeyword(item.description);
             if(keyword.length < 3) continue;
 
             if (!rulesDelta[targetCat]) rulesDelta[targetCat] = [];
@@ -97,54 +95,38 @@ export class InvoiceETL {
         return rulesDelta;
     }
 
-    // --- TRANSFORMAÇÃO COM IA ---
     async transform(billMonth, categoryRules, availableCategories) {
-        // 1. Prepara regras (Atuais + Aprendidas agora)
         const activeRules = JSON.parse(JSON.stringify(categoryRules));
         Object.keys(this.newLearnedRules).forEach(cat => {
             if(!activeRules[cat]) activeRules[cat] = []; 
             activeRules[cat].push(...this.newLearnedRules[cat]);
         });
 
-        // 2. Identifica itens sem categoria (Candidatos para IA)
+        // Identifica itens para IA
         const itemsToAskAI = [];
-        
-        // Mapeia dados preliminares
         const tempProcessed = this.extractedData.map(item => {
             const upperDesc = item.description.toUpperCase();
             
-            // Filtros de exclusão
             if (upperDesc.includes("SALDO FATURA") || upperDesc.includes("SUBTOTAL") || upperDesc.startsWith("TOTAL ")) return null;
             if (item.section === "Pagamentos" || upperDesc.includes("PGTO")) {
                 if (item.value < -50 && (upperDesc.startsWith("PGTO") || upperDesc.includes("DEBITO CONTA") || upperDesc.includes("CASH AG"))) return null;
             }
 
             let finalCategory = item.section;
-            
-            // Se a seção for vaga, tenta detectar localmente
             if (["Detectar", "Pagamentos", "Outros", "Outros lançamentos"].includes(finalCategory)) {
                 const detected = detectCategory(item.description, activeRules);
-                if (detected !== "Outros") {
-                    finalCategory = detected; // Regra local funcionou
-                } else {
-                    // Regra local falhou -> Mandar para IA
-                    itemsToAskAI.push(item.description); 
-                }
+                if (detected !== "Outros") finalCategory = detected;
+                else itemsToAskAI.push(item.description); 
             }
-            
             return { ...item, category: finalCategory };
         }).filter(i => i !== null);
 
-        // 3. CONSULTA A IA
+        // Consulta IA
         let aiResults = {};
         if (itemsToAskAI.length > 0) {
-            console.log(`🧠 IA: Analisando ${itemsToAskAI.length} itens...`);
-            // Passa as categorias disponíveis para a IA escolher
             aiResults = await categorizeWithAI(itemsToAskAI, availableCategories);
-            console.log("🧠 IA: Resposta", aiResults);
         }
 
-        // 4. Processamento Final (Aplica IA + Parcelas)
         const [yBill, mBill] = billMonth.split('-');
         const defaultInvoiceDate = `10.${mBill}.${yBill}`;
         const regexInstallment = /(?:PARC\s*)?(\d{1,2})\/(\d{1,2})/;
@@ -152,13 +134,9 @@ export class InvoiceETL {
         let sumDebits = 0, sumCredits = 0;
 
         for (const item of tempProcessed) {
-            // Aplica resposta da IA se necessário
             if (["Detectar", "Pagamentos", "Outros", "Outros lançamentos"].includes(item.category)) {
-                if (aiResults[item.description]) {
-                    item.category = aiResults[item.description];
-                } else {
-                    item.category = "Outros"; // IA não soube, fallback final
-                }
+                if (aiResults[item.description]) item.category = aiResults[item.description];
+                else item.category = "Outros";
             }
 
             const instMatch = item.description.match(regexInstallment);

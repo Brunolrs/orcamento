@@ -25,8 +25,6 @@ export async function saveToFirebase() {
     } catch (e) { console.error("Erro ao salvar:", e); }
 }
 
-// ... (imports) ...
-
 export async function resetAllData() {
     if (!appState.user) return;
     const userDocRef = doc(db, "users", appState.user.uid);
@@ -35,13 +33,12 @@ export async function resetAllData() {
             transactions: [], 
             incomeDetails: {}, 
             monthlyBudgets: {},
-            categoryRules: { "Outros": [] }, // <--- FORÇA O RESET DAS CATEGORIAS
+            categoryRules: { "Outros": [] }, // Limpa regras
             categoryColors: {} 
         });
     } catch (e) { console.error("Erro ao resetar:", e); }
 }
 
-// ... (resto do arquivo igual) ...
 export function startRealtimeListener(uid, renderCallback) {
     const userDocRef = doc(db, "users", uid);
     onSnapshot(userDocRef, (docSnap) => {
@@ -52,18 +49,9 @@ export function startRealtimeListener(uid, renderCallback) {
             appState.monthlyBudgets = data.monthlyBudgets || {};
             appState.categoryColors = data.categoryColors || {};
             
-            if (data.monthlyIncomes && Object.keys(appState.incomeDetails).length === 0) {
-                Object.keys(data.monthlyIncomes).forEach(m => {
-                    if (data.monthlyIncomes[m] > 0) appState.incomeDetails[m] = [{ id: Date.now(), desc: "Renda Principal", val: data.monthlyIncomes[m] }];
-                });
-            }
-
-            // Se existirem regras salvas, usa. Se não, usa DEFAULT (apenas na criação inicial da conta)
-            // Se o usuário resetou, virá apenas "Outros", o que é correto.
             if (data.categoryRules && Object.keys(data.categoryRules).length > 0) {
                 appState.categoryRules = data.categoryRules;
             } else {
-                // Fallback para conta nova zerada ou erro
                 appState.categoryRules = { "Outros": [] }; 
             }
             
@@ -72,7 +60,6 @@ export function startRealtimeListener(uid, renderCallback) {
 
             if (!appState.isEditMode && renderCallback) renderCallback();
         } else {
-            // Novo usuário: Começa com regras padrão do config.js
             setDoc(userDocRef, { 
                 transactions: [], 
                 incomeDetails: {}, 

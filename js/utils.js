@@ -1,9 +1,9 @@
 /**
- * UTILS - Parser Inteligente com Deduplicação Avançada (Normalização)
- * Versão: Correção "PARC" (Ignora a palavra PARC na comparação para evitar duplicatas)
+ * UTILS - Funções Auxiliares e Parser
+ * Inclui: Formatadores, UI helpers e a função crítica 'extractKeyword' para o aprendizado da IA.
  */
 
-const DEBUG = true;
+const DEBUG = true; // Define como false em produção para limpar o console
 
 // --- Mobile First Features ---
 export function vibrate(ms = 50) {
@@ -31,6 +31,30 @@ export function formatMonthLabel(isoMonth) {
   return `${name.charAt(0).toUpperCase() + name.slice(1)} ${y}`;
 }
 
+// --- FUNÇÃO CRÍTICA PARA A IA E APRENDIZADO ---
+/**
+ * Extrai a "palavra-chave" de uma descrição para criar regras.
+ * Remove números, parcelas e caracteres especiais.
+ * Ex: "UBER *VIAGEM 1234" -> "UBER VIAGEM"
+ */
+export function extractKeyword(description) {
+    if (!description) return "";
+    
+    let keyword = description.toUpperCase()
+        .replace(/[0-9]/g, '')       // Remove números (datas, valores)
+        .replace(/[^A-Z\s]/g, '')    // Mantém apenas letras e espaços
+        .replace(/\s+/g, ' ')        // Remove espaços duplos
+        .trim();
+
+    // Limita o tamanho para evitar regras gigantescas e específicas demais
+    if (keyword.length > 20) keyword = keyword.substring(0, 20).trim();
+    
+    return keyword;
+}
+
+/**
+ * Detecta categoria por palavras-chave (Regra Local).
+ */
 export function detectCategory(description, categoryRules) {
   const descUpper = (description || "").toUpperCase();
   for (const [category, keywords] of Object.entries(categoryRules || {})) {
@@ -41,10 +65,11 @@ export function detectCategory(description, categoryRules) {
   return "Outros";
 }
 
-// --- Helper de Data ---
+// --- Funções Internas do Parser (Não precisam ser exportadas se usadas só aqui) ---
+
 function addMonthsToDate(dateStr, monthsToAdd) {
   const [d, m, y] = dateStr.split('.').map(Number);
-  // Fixa dia 10 para evitar problemas de 30/31
+  // Fixa dia 10 para evitar problemas de virada de mês (ex: 31/01 -> 28/02)
   const newDate = new Date(y, (m - 1) + monthsToAdd, 10);
   
   const nd = String(d).padStart(2, '0');
@@ -57,53 +82,42 @@ function addMonthsToDate(dateStr, monthsToAdd) {
   };
 }
 
-// --- Helper de Normalização (A CORREÇÃO ESTÁ AQUI) ---
-// Remove "PARC", espaços e símbolos para comparar apenas a "alma" da transação
-function normalizeStr(str) {
-    if (!str) return "";
-    return str.toUpperCase()
-        .replace(/PARC(?:ELA)?/g, "") // Remove PARC ou PARCELA
-        .replace(/[^A-Z0-9]/g, "");   // Remove espaços e símbolos
-}
-
 function matchTransactionLine(line) {
-  // Regex flexível para linhas com ou sem país
-  const RX_FULL = /^(\d{2}[\.\/]\d{2}[\.\/]\d{4})\s*(.*?)(?:\s+(BR|US))\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})/;
-  const RX_SIMPLE = /^(\d{2}[\.\/]\d{2}[\.\/]\d{4})\s*(.*?)\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})/;
+  // Regex 1: Com país (BR/US)
+  const RX_WITH_COUNTRY = /^(\d{2}[\/\.]\d{2}[\/\.]\d{4})\s*(.*?)(?:\s+(BR|US))\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})$/;
+  
+  // Regex 2: Sem país (Fallback)
+  const RX_NO_COUNTRY = /^(\d{2}[\/\.]\d{2}[\/\.]\d{4})\s*(.*?)\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})$/;
 
-  let m = RX_FULL.exec(line);
-  if (!m) m = RX_SIMPLE.exec(line);
-
+  let m = RX_WITH_COUNTRY.exec(line);
   if (m) {
-    return {
-      date: m[1],
-      desc: m[2].trim(),
-      valBRL: m[m.length - 2]
-    };
+    return { date: m[1], desc: m[2].trim(), valBRL: m[4] };
   }
+  
+  m = RX_NO_COUNTRY.exec(line);
+  if (m) {
+    return { date: m[1], desc: m[2].trim(), valBRL: m[3] };
+  }
+  
   return null;
 }
 
-// --- PARSER PRINCIPAL ---
+/**
+ * Parser Legado/Manual (Usado se não utilizar o ETL class)
+ * Mantido para compatibilidade ou uso rápido.
+ */
 export function parseFileContent(text, billMonth, existingTransactions, categoryRules) {
   const lines = text.split(/\r?\n/);
-  // Regex para identificar parcelas (ex: 01/10 ou PARC 01/10)
-  const regexInstallment = /(?:PARC\s*)?(\d{1,2})\/(\d{1,2})/;
+  const regexInstallment = /(?:^|\s)(?:PARC\s*)?(\d{1,2})\/(\d{1,2})(?:\s|$|\))/i;
 
   let count = 0;
   const newTransactions = [];
-  const debugLog = []; 
-
   const [yBill, mBill] = billMonth.split('-');
   const defaultInvoiceDate = `10.${mBill}.${yBill}`;
 
   let currentCategory = "Outros";
+  let isCreditSection = false;
   let stopParsing = false;
-  
-  // Auditoria
-  let totalDebits = 0;
-  let totalCredits = 0;
-  let bankTotalTarget = null;
 
   const knownCategories = [
     "Educação", "Lazer", "Restaurantes", "Saúde", "Serviços", 
@@ -111,153 +125,89 @@ export function parseFileContent(text, billMonth, existingTransactions, category
     "Outros lançamentos", "Compras parceladas", "Pagamentos/Créditos"
   ];
 
-  const stopMarkers = ["RESUMO EM REAL", "LIMITES - R$", "ENCARGOS FINANCEIROS"];
-
-  debugLog.push({ type: 'INFO', msg: `Iniciando Parsing para: ${billMonth}` });
+  const hardStops = ["RESUMO EM REAL", "LIMITES", "ENCARGOS FINANCEIROS"];
 
   for (const rawLine of lines) {
     if (stopParsing) break;
-    const line = rawLine.trim();
+    const line = (rawLine || "").trim();
     if (!line) continue;
 
-    // 1. Captura Total Oficial
-    if (line.includes("Total da fatura :")) {
-        const parts = line.split(":");
-        if (parts.length > 1) {
-            const valStr = parts[1].trim().replace("R$", "").trim().replace(/\./g, "").replace(",", ".");
-            bankTotalTarget = parseFloat(valStr);
-            debugLog.push({ type: 'TARGET', msg: `Total Oficial: ${formatBRL(bankTotalTarget)}` });
-        }
-    }
-
-    // 2. Parada
-    if (stopMarkers.some(marker => line.includes(marker))) {
+    if (hardStops.some(h => line.toUpperCase().startsWith(h))) {
       stopParsing = true;
       break;
     }
 
-    // 3. Seção
-    const potentialCategory = knownCategories.find(cat => line.includes(cat));
-    if (potentialCategory && line.length < 50 && !/\d{2}\.\d{2}\.\d{4}/.test(line)) {
-      currentCategory = potentialCategory;
+    const potentialCategory = knownCategories.find(cat => line === cat);
+    if (potentialCategory) {
+      currentCategory = potentialCategory === "Compras parceladas" ? "Outros" : potentialCategory;
+      isCreditSection = (potentialCategory === "Pagamentos/Créditos");
       continue;
     }
 
-    // 4. Transação
-    const match = matchTransactionLine(line);
-    if (!match) continue;
+    const m = matchTransactionLine(line);
+    if (!m) continue;
 
-    let { date, desc, valBRL } = match;
+    let { date, desc, valBRL } = m;
     desc = desc.replace(/\*/g, ' ').replace(/\s+/g, ' ').trim();
     let val = parseFloat(valBRL.replace(/\./g, '').replace(',', '.'));
     const upperDesc = desc.toUpperCase();
 
-    let action = "CHECKING";
-    let reason = "";
+    // Filtros de Exclusão
+    if (upperDesc.includes("SALDO FATURA") || upperDesc.includes("SUBTOTAL") || upperDesc.startsWith("TOTAL ")) continue;
 
-    // --- REGRAS DE EXCLUSÃO ---
-    if (upperDesc.includes("SALDO FATURA") || upperDesc.includes("SUBTOTAL") || upperDesc.startsWith("TOTAL ") || upperDesc === "BR") {
-        action = "SKIPPED";
-        reason = "Linha Informativa";
+    if (isCreditSection) {
+        // Ignora pagamento de fatura, mantém estornos
+        if (val < -50 && (upperDesc.startsWith("PGTO") || upperDesc.includes("DEBITO CONTA") || upperDesc.includes("CASH AG"))) continue;
     }
-    else if (val < -100 && (
-        upperDesc.startsWith("PGTO ") || 
-        upperDesc.includes("DEBITO CONTA") || 
-        upperDesc.includes("PAGAMENTO DE TITULO") ||
-        upperDesc.includes("CASH AG")
-    )) {
-        action = "SKIPPED";
-        reason = "Pagamento Fatura Anterior";
-    } 
-    else {
-        action = "INCLUDED";
+
+    let finalCat = currentCategory;
+    if (["Outros", "Compras parceladas", "Pagamentos/Créditos"].includes(finalCat)) {
+        finalCat = detectCategory(desc, categoryRules);
+    }
+
+    // Parcelas
+    const instMatch = desc.match(regexInstallment);
+    let loops = 1;
+    let currentInst = 1;
+    let totalInst = 1;
+
+    if (instMatch) {
+        currentInst = parseInt(instMatch[1]);
+        totalInst = parseInt(instMatch[2]);
+        loops = 1 + (totalInst - currentInst);
+    }
+
+    for (let i = 0; i < loops; i++) {
+        const futureInfo = addMonthsToDate(defaultInvoiceDate, i);
+        let finalDesc = desc;
         
-        let finalCat = currentCategory;
-        if (finalCat === "Compras parceladas" || finalCat === "Pagamentos/Créditos" || finalCat === "Outros") {
-            finalCat = detectCategory(desc, categoryRules);
+        if (instMatch && i > 0) {
+            const nextInstNum = currentInst + i;
+            finalDesc = desc.replace(instMatch[0], `${String(nextInstNum).padStart(2,'0')}/${String(totalInst).padStart(2,'0')}`);
         }
 
-        // --- PARCELAS ---
-        const instMatch = desc.match(regexInstallment);
-        let loops = 1;
-        let currentInst = 1;
-        let totalInst = 1;
+        // Deduplicação Simples
+        const exists = existingTransactions && existingTransactions.some(t => 
+            t.description === finalDesc && 
+            Math.abs(t.amount - val) < 0.05 && 
+            t.billMonth === futureInfo.billMonth
+        );
 
-        if (instMatch) {
-            currentInst = parseInt(instMatch[1]);
-            totalInst = parseInt(instMatch[2]);
-            // Gera do atual até o final
-            loops = (totalInst - currentInst) + 1;
-        }
-
-        for (let i = 0; i < loops; i++) {
-            const futureInfo = addMonthsToDate(defaultInvoiceDate, i);
-            
-            let finalDesc = desc;
-            if (instMatch && i > 0) {
-                const nextInstNum = currentInst + i;
-                // Ex: Transforma 01/10 em 02/10 na string
-                finalDesc = desc.replace(instMatch[0], `${String(nextInstNum).padStart(2,'0')}/${String(totalInst).padStart(2,'0')}`);
-            }
-
-            // --- DEDUPLICAÇÃO ROBUSTA ---
-            // 1. Normaliza strings (remove PARC, espaços, símbolos)
-            const normFinalDesc = normalizeStr(finalDesc);
-            
-            const isDuplicate = (t) => {
-                const sameDesc = normalizeStr(t.description) === normFinalDesc;
-                const sameVal = Math.abs(t.amount - val) < 0.05;
-                const sameMonth = t.billMonth === futureInfo.billMonth;
-                // Para parcelas, ignoramos a data exata da compra porque o arquivo pode variar 
-                // ou ter sido gerado em dia diferente. Confiamos na descrição da parcela + valor + mês.
-                // Para compras à vista, exigimos a data para diferenciar (ex: Uber)
-                const sameDate = t.date === date;
-                
-                if (instMatch) {
-                    return sameDesc && sameVal && sameMonth;
-                } else {
-                    return sameDesc && sameVal && sameMonth && sameDate;
-                }
-            };
-
-            const exists = existingTransactions.some(isDuplicate) || newTransactions.some(isDuplicate);
-
-            if (!exists) {
-                newTransactions.push({
-                    id: Math.random().toString(36).substr(2, 9),
-                    date: date,
-                    invoiceDate: futureInfo.formattedDate,
-                    billMonth: futureInfo.billMonth,
-                    description: finalDesc,
-                    amount: val,
-                    category: finalCat,
-                    isBillPayment: false
-                });
-                
-                // Contabiliza apenas o mês atual importado
-                if (i === 0) {
-                    count++;
-                    if (val > 0) totalDebits += val;
-                    else totalCredits += val;
-                }
-            } else {
-                if(i === 0) {
-                    action = "SKIPPED";
-                    reason = `Duplicado (${finalDesc})`;
-                }
-            }
+        if (!exists) {
+            newTransactions.push({
+                id: Math.random().toString(36).substr(2, 9),
+                date: date,
+                invoiceDate: futureInfo.formattedDate,
+                billMonth: futureInfo.billMonth,
+                description: finalDesc,
+                amount: val,
+                category: finalCat,
+                isBillPayment: false
+            });
+            if (i === 0) count++;
         }
     }
-
-    debugLog.push({ status: action, desc: desc, val: val, reason: reason });
   }
 
-  const calculatedTotal = totalDebits + totalCredits;
-  
-  debugLog.push({ 
-      type: 'SUMMARY', 
-      msg: `Banco: ${bankTotalTarget ? formatBRL(bankTotalTarget) : 'N/A'} | Sistema: ${formatBRL(calculatedTotal)}` 
-  });
-
-  return { count, newTransactions, debugLog, calculatedTotal, bankTotalTarget };
+  return { count, newTransactions };
 }

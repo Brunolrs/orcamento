@@ -1,21 +1,35 @@
 /**
- * MAIN - PONTO DE ENTRADA E CONTROLE
+ * MAIN - PONTO DE ENTRADA
  */
 import { auth, signInWithPopup, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase, resetAllData } from './firebase.js';
 import { appState } from './state.js';
 import { initViewSelector, filterAndRender, renderIncomeList, renderCategoryManager, renderEtlPreview } from './ui.js';
-import { lockBodyScroll, unlockBodyScroll, vibrate, formatBRL } from './utils.js';
+import { lockBodyScroll, unlockBodyScroll, vibrate, extractKeyword } from './utils.js';
 import { InvoiceETL } from './etl.js';
-import { DEFAULT_RULES } from './config.js'; // Importante para a IA saber o básico
+import { DEFAULT_RULES } from './config.js';
 
-// --- INICIALIZAÇÃO ---
+// --- APRENDIZADO ATIVO ---
+function learnRule(description, category) {
+    if (!description || !category || category === "Outros") return;
+    const keyword = extractKeyword(description);
+    if (keyword.length < 3) return;
+
+    if (!appState.categoryRules[category]) {
+        appState.categoryRules[category] = [];
+        if(!appState.categories.includes(category)) appState.categories.push(category);
+    }
+    if (!appState.categoryRules[category].includes(keyword)) {
+        appState.categoryRules[category].push(keyword);
+        console.log(`🧠 Aprendizado: "${keyword}" -> "${category}"`);
+    }
+}
+
+// --- INIT ---
 document.addEventListener('DOMContentLoaded', () => {
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
-    
     if(document.getElementById('import-ref-month')) document.getElementById('import-ref-month').value = `${yyyy}-${mm}`;
-    
     const todayISO = today.toISOString().split('T')[0];
     if(document.getElementById('manual-date')) document.getElementById('manual-date').value = todayISO;
     if(document.getElementById('manual-invoice-date')) document.getElementById('manual-invoice-date').value = todayISO;
@@ -24,24 +38,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if(btnLogin) btnLogin.addEventListener('click', () => { vibrate(); signInWithPopup(auth); });
 
     const checkInstallment = document.getElementById('is-installment');
-    if(checkInstallment) {
-        checkInstallment.addEventListener('change', (e) => {
-            document.getElementById('installment-options').style.display = e.target.checked ? 'block' : 'none';
-        });
-    }
+    if(checkInstallment) checkInstallment.addEventListener('change', (e) => { document.getElementById('installment-options').style.display = e.target.checked ? 'block' : 'none'; });
 
-    document.getElementById('view-month').addEventListener('change', (e) => {
-        appState.currentViewMonth = e.target.value;
-        filterAndRender();
-    });
+    document.getElementById('view-month').addEventListener('change', (e) => { appState.currentViewMonth = e.target.value; filterAndRender(); });
 
     const budgetInput = document.getElementById('month-budget');
     if (budgetInput) {
         budgetInput.addEventListener('input', (e) => {
             let value = e.target.value.replace(/\D/g, "");
             if (value === "") { e.target.value = ""; return; }
-            value = (parseInt(value) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            e.target.value = value;
+            e.target.value = (parseInt(value) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         });
         budgetInput.addEventListener('change', (e) => {
             const cleanValue = parseFloat(e.target.value.replace(/\./g, '').replace(',', '.'));
@@ -49,15 +55,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (month && month !== "ALL") {
                 if (isNaN(cleanValue) || cleanValue < 0) delete appState.monthlyBudgets[month];
                 else appState.monthlyBudgets[month] = cleanValue;
-                saveToFirebase();
-                filterAndRender();
+                saveToFirebase(); filterAndRender();
             }
         });
     }
 
-    // Ações Principais
     document.getElementById('fileInput').addEventListener('change', (e) => handleFileUpload(e.target.files[0]));
-    
     const btnToggleMenu = document.getElementById('btn-toggle-menu');
     const dropdown = document.getElementById('main-dropdown');
     btnToggleMenu.addEventListener('click', (e) => { e.stopPropagation(); vibrate(); dropdown.classList.toggle('show'); });
@@ -67,33 +70,29 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-delete-month').addEventListener('click', () => { vibrate(100); deleteCurrentMonth(); });
     
     const btnReset = document.getElementById('btn-reset-all');
-    if(btnReset) {
-        btnReset.addEventListener('click', async () => {
-            if(confirm("PERIGO: Isso apagará TUDO.\nDeseja continuar?")) {
-                const conf = prompt("Digite DELETAR para confirmar:");
-                if (conf === "DELETAR") {
-                    vibrate(200);
-                    appState.transactions = [];
-                    appState.incomeDetails = {};
-                    appState.monthlyBudgets = {};
-                    appState.categoryRules = { "Outros": [] };
-                    appState.categories = ["Outros"];
-                    await resetAllData();
-                    alert("Sistema zerado.");
-                    window.location.reload();
-                }
+    if(btnReset) btnReset.addEventListener('click', async () => {
+        if(confirm("Isso apagará TUDO. Deseja continuar?")) {
+            const conf = prompt("Digite DELETAR:");
+            if (conf === "DELETAR") {
+                vibrate(200);
+                appState.transactions = [];
+                appState.incomeDetails = {};
+                appState.monthlyBudgets = {};
+                appState.categoryRules = { "Outros": [] };
+                appState.categories = ["Outros"];
+                await resetAllData();
+                alert("Resetado.");
+                window.location.reload();
             }
-        });
-    }
+        }
+    });
 
     document.getElementById('btn-col-chart').addEventListener('click', () => window.toggleSection('chart-wrapper', 'icon-chart'));
     document.getElementById('btn-col-cat').addEventListener('click', () => window.toggleSection('category-summary-area', 'icon-cat'));
     document.getElementById('btn-col-list').addEventListener('click', () => window.toggleSection('output', 'icon-list'));
     document.getElementById('btn-toggle-edit').addEventListener('click', () => { vibrate(); window.toggleEditMode(); });
 
-    setupModal('import-modal', 'btn-open-import', 'btn-close-import', () => {
-        if(appState.currentViewMonth && appState.currentViewMonth !== "ALL") document.getElementById('import-ref-month').value = appState.currentViewMonth;
-    });
+    setupModal('import-modal', 'btn-open-import', 'btn-close-import', () => { if(appState.currentViewMonth && appState.currentViewMonth !== "ALL") document.getElementById('import-ref-month').value = appState.currentViewMonth; });
     setupModal('settings-modal', 'btn-open-categories', 'btn-close-settings', renderCategoryManager);
     setupModal('manual-modal', 'btn-open-manual', 'btn-close-manual', () => openManualModal());
     setupModal('income-modal', 'btn-manage-income', 'btn-close-income', () => renderIncomeList());
@@ -104,20 +103,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function setupModal(modalId, openBtnId, closeBtnId, openCallback) {
     const modal = document.getElementById(modalId);
-    if(document.getElementById(openBtnId)) {
-        document.getElementById(openBtnId).addEventListener('click', () => {
-            vibrate();
-            if(openCallback) openCallback();
-            modal.style.display = 'flex';
-            lockBodyScroll();
-        });
-    }
-    if(document.getElementById(closeBtnId)) {
-        document.getElementById(closeBtnId).addEventListener('click', () => {
-            modal.style.display = 'none';
-            unlockBodyScroll();
-        });
-    }
+    if(document.getElementById(openBtnId)) document.getElementById(openBtnId).addEventListener('click', () => { vibrate(); if(openCallback) openCallback(); modal.style.display = 'flex'; lockBodyScroll(); });
+    if(document.getElementById(closeBtnId)) document.getElementById(closeBtnId).addEventListener('click', () => { modal.style.display = 'none'; unlockBodyScroll(); });
 }
 
 onAuthStateChanged(auth, (user) => {
@@ -125,10 +112,7 @@ onAuthStateChanged(auth, (user) => {
         appState.user = user;
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app-screen').style.display = 'block';
-        startRealtimeListener(user.uid, () => {
-            initViewSelector();
-            filterAndRender();
-        });
+        startRealtimeListener(user.uid, () => { initViewSelector(); filterAndRender(); });
     } else {
         appState.user = null;
         document.getElementById('login-screen').style.display = 'flex';
@@ -146,28 +130,20 @@ window.toggleSection = (sectionId, iconId) => {
 window.toggleEditMode = () => {
     appState.isEditMode = !appState.isEditMode;
     const btn = document.getElementById('btn-toggle-edit');
-    if(appState.isEditMode) {
-        btn.classList.add('active');
-        document.getElementById('output').classList.remove('collapsed-content');
-    } else {
-        btn.classList.remove('active');
-    }
+    if(appState.isEditMode) { btn.classList.add('active'); document.getElementById('output').classList.remove('collapsed-content'); } 
+    else { btn.classList.remove('active'); }
     filterAndRender();
 };
 window.updateTx = (id, field, value) => {
     const tx = appState.transactions.find(t => t.id === id);
     if (!tx) return;
-    if (field === 'amount') {
-        const val = parseFloat(value);
-        if (isNaN(val)) return;
-        tx.amount = tx.amount < 0 ? -Math.abs(val) : Math.abs(val);
-    } else if (field === 'date') {
-        const [y, m, d] = value.split('-'); tx.date = `${d}.${m}.${y}`;
-    } else if (field === 'invoiceDate') {
-        const [y, m, d] = value.split('-'); tx.invoiceDate = `${d}.${m}.${y}`; tx.billMonth = `${y}-${m}`;
-    } else {
-        tx[field] = value;
-    }
+    if (field === 'amount') { const val = parseFloat(value); if (!isNaN(val)) tx.amount = tx.amount < 0 ? -Math.abs(val) : Math.abs(val); }
+    else if (field === 'date') { const [y, m, d] = value.split('-'); tx.date = `${d}.${m}.${y}`; }
+    else if (field === 'invoiceDate') { const [y, m, d] = value.split('-'); tx.invoiceDate = `${d}.${m}.${y}`; tx.billMonth = `${y}-${m}`; }
+    else if (field === 'category') {
+        if (tx.category !== value) learnRule(tx.description, value);
+        tx.category = value;
+    } else { tx[field] = value; }
     saveToFirebase();
     if(field === 'invoiceDate') filterAndRender();
 };
@@ -215,114 +191,80 @@ window.renameCategory = (oldName, newName) => {
     }
 };
 
-// ============================================================================
-// LÓGICA DE IMPORTAÇÃO (ETL + IA + SUBSTITUIÇÃO INTELIGENTE)
-// ============================================================================
-
 async function handleFileUpload(file) {
     if(!file) return;
     const targetMonth = document.getElementById('import-ref-month').value;
     if(!targetMonth) { alert("Selecione o mês."); return; }
     
-    // UI: Mostrar Loading
     document.body.style.cursor = 'wait';
-    
     try {
         const textContent = await file.text();
         const etl = new InvoiceETL();
-        
         etl.extract(textContent);
         const newRulesDelta = etl.learn(appState.categoryRules);
         
-        // IA: Mescla categorias do App + Categorias Padrão (para o caso de Reset) + Novas aprendidas
+        // Passa todas as categorias possíveis (Sistema + Padrão + Aprendidas agora) para a IA
         const defaultCats = Object.keys(DEFAULT_RULES);
         const learnedCats = Object.keys(newRulesDelta);
         const allCategories = [...new Set([...appState.categories, ...defaultCats, ...learnedCats])];
 
-        // MUDANÇA: await para esperar a IA
         await etl.transform(targetMonth, appState.categoryRules, allCategories);
-        
         const previewData = etl.getPreviewData();
-        
         document.body.style.cursor = 'default';
 
         renderEtlPreview(previewData, async () => {
             let addedCount = 0;
-            let updatedCount = 0;
-
-            // 1. Salva Aprendizado e Categorias Novas (ex: IA sugeriu "Casa")
-            // Verifica se a IA usou alguma categoria que não temos ainda
-            etl.transformedData.forEach(tx => {
-                const cat = tx.category;
-                if (!appState.categoryRules[cat]) {
-                    appState.categoryRules[cat] = [];
-                    if(!appState.categories.includes(cat)) appState.categories.push(cat);
-                }
-            });
-
-            // Salva regras do Learn
+            // 1. Salvar Regras
             if (previewData.learnedCount > 0) {
                 Object.keys(newRulesDelta).forEach(cat => {
-                    if (appState.categoryRules[cat]) {
-                        newRulesDelta[cat].forEach(rule => {
-                            if (!appState.categoryRules[cat].includes(rule)) {
-                                appState.categoryRules[cat].push(rule);
-                            }
-                        });
-                    }
+                    if (!appState.categoryRules[cat]) { appState.categoryRules[cat] = []; if(!appState.categories.includes(cat)) appState.categories.push(cat); }
+                    newRulesDelta[cat].forEach(rule => { if (!appState.categoryRules[cat].includes(rule)) appState.categoryRules[cat].push(rule); });
                 });
             }
-
-            // 2. Limpeza do Mês (Substituição Inteligente)
-            const keptTransactions = appState.transactions.filter(t => {
-                return t.billMonth !== targetMonth || t.id.startsWith('MAN_');
+            // IA Categories
+            etl.transformedData.forEach(tx => {
+                const cat = tx.category;
+                if (!appState.categoryRules[cat]) { appState.categoryRules[cat] = []; if(!appState.categories.includes(cat)) appState.categories.push(cat); }
             });
 
+            // 2. Limpeza e Substituição (Fix Saldo Incorreto)
+            // Remove tudo do mês importado, exceto manuais
+            const keptTransactions = appState.transactions.filter(t => t.billMonth !== targetMonth || t.id.startsWith('MAN_'));
+            
             const currentItems = etl.transformedData.filter(t => t.billMonth === targetMonth);
             const futureItems = etl.transformedData.filter(t => t.billMonth > targetMonth);
 
+            // Adiciona mês atual limpo
             const finalTransactions = [...keptTransactions, ...currentItems];
 
-            // 3. Mescla Futuro
+            // Mescla futuro (não duplica se já existir)
             const normalize = (s) => s.toUpperCase().replace(/PARC(?:ELA)?/g, "").replace(/[^A-Z0-9]/g, "");
-            
             futureItems.forEach(newTx => {
                 const exists = finalTransactions.some(existing => 
                     existing.billMonth === newTx.billMonth &&
                     normalize(existing.description) === normalize(newTx.description) &&
                     Math.abs(existing.amount - newTx.amount) < 0.05
                 );
-                if (!exists) {
-                    finalTransactions.push(newTx);
-                    addedCount++; // Conta projeções novas
-                }
+                if (!exists) { finalTransactions.push(newTx); addedCount++; }
             });
 
             appState.transactions = finalTransactions;
             await saveToFirebase();
             
-            alert(`Importação Concluída!\n\nDados do mês atualizados e ${addedCount} projeções futuras criadas.`);
-            
+            alert(`Sucesso! Mês atualizado e ${addedCount} projeções futuras criadas.`);
             appState.currentViewMonth = targetMonth;
             const { initViewSelector, filterAndRender } = await import('./ui.js');
-            initViewSelector(); 
-            filterAndRender();
+            initViewSelector(); filterAndRender();
             document.getElementById('import-modal').style.display = 'none';
             unlockBodyScroll();
         });
-
-    } catch (e) { 
-        document.body.style.cursor = 'default';
-        console.error(e); 
-        alert("Erro: " + e.message); 
-    }
-    
+    } catch (e) { document.body.style.cursor = 'default'; console.error(e); alert("Erro: " + e.message); }
     document.getElementById('fileInput').value = '';
 }
 
 function deleteCurrentMonth() {
     if(appState.currentViewMonth === "ALL") { alert("Selecione um mês específico."); return; }
-    if(confirm(`ATENÇÃO: Apagar dados de ${appState.currentViewMonth}?`)) {
+    if(confirm(`Apagar dados de ${appState.currentViewMonth}?`)) {
         appState.transactions = appState.transactions.filter(t => t.billMonth !== appState.currentViewMonth);
         delete appState.incomeDetails[appState.currentViewMonth];
         if(appState.monthlyBudgets[appState.currentViewMonth]) delete appState.monthlyBudgets[appState.currentViewMonth];
@@ -338,13 +280,13 @@ function saveManualTransaction() {
     const dateBuyStr = document.getElementById('manual-date').value;
     const dateInvStr = document.getElementById('manual-invoice-date').value;
     const cat = document.getElementById('manual-cat').value;
-    const type = document.querySelector('input[name="tx-type"]:checked').value;
     const isInstallment = document.getElementById('is-installment') ? document.getElementById('is-installment').checked : false;
     const totalInstallments = parseInt(document.getElementById('installments-count').value) || 2;
 
     if(!desc || !valStr || !dateBuyStr || !dateInvStr) { alert("Preencha todos os campos!"); return; }
     let amount = parseFloat(valStr.replace(/\./g, '').replace(',', '.'));
     if (isNaN(amount)) { alert("Valor inválido"); return; }
+    const type = document.querySelector('input[name="tx-type"]:checked').value;
     if (type === 'credit') amount = -Math.abs(amount); else amount = Math.abs(amount);
     
     const [yB, mB, dB] = dateBuyStr.split('-').map(Number);
@@ -356,9 +298,11 @@ function saveManualTransaction() {
         if(index > -1) {
             const formattedDateInv = `${String(dI).padStart(2,'0')}.${String(mI).padStart(2,'0')}.${yI}`;
             const billMonth = `${yI}-${String(mI).padStart(2,'0')}`;
+            if (appState.transactions[index].category !== cat) learnRule(desc, cat);
             appState.transactions[index] = { ...appState.transactions[index], date: formattedDateBuy, invoiceDate: formattedDateInv, billMonth: billMonth, description: desc, amount: amount, category: cat };
         }
     } else {
+        learnRule(desc, cat);
         const loops = isInstallment ? totalInstallments : 1;
         for (let i = 0; i < loops; i++) {
             let currentInvDate = new Date(yI, mI - 1 + i, dI);
