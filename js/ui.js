@@ -27,6 +27,7 @@ export function initViewSelector(onChangeCallback) {
   optAll.text = "📊 Visão Geral (Tudo)";
   select.add(optAll);
 
+  // Cria lista de meses únicos baseados nas transações
   const months = Array.from(new Set(appState.transactions.map(t => t.billMonth))).sort().reverse();
   months.forEach(m => {
     const opt = document.createElement('option');
@@ -49,6 +50,7 @@ export function filterAndRender() {
   let currentIncome = 0;
   let labelText = "";
 
+  // Filtra transações
   if (view === "ALL") {
     txs = appState.transactions;
     Object.values(appState.incomeDetails).forEach(list => list.forEach(i => currentIncome += i.val));
@@ -59,6 +61,7 @@ export function filterAndRender() {
     labelText = `Renda de ${formatMonthLabel(view).split(' ')[0]}`;
   }
 
+  // 1. Atualiza Input de Renda
   const inputEl = document.getElementById('monthly-income');
   inputEl.value = currentIncome > 0
     ? currentIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
@@ -66,6 +69,7 @@ export function filterAndRender() {
   document.getElementById('income-label-text').innerText = labelText;
   document.getElementById('btn-manage-income').style.display = (view === "ALL") ? "none" : "flex";
 
+  // 2. Atualiza Input de Orçamento (Meta)
   const budgetInput = document.getElementById('month-budget');
   if (budgetInput) {
     if (view === "ALL") {
@@ -94,17 +98,20 @@ function renderListsAndCharts(transactions, currentIncome) {
   const catTotals = {};
   const grouped = {};
 
+  // Inicializa grupos
   appState.categories.forEach(c => grouped[c] = []);
   if(!grouped["Outros"]) grouped["Outros"] = [];
 
+  // Ordenação por Data de Compra (Visual)
   transactions.sort((a, b) => {
     const [da, ma, ya] = a.date.split('.');
     const [db, mb, yb] = b.date.split('.');
     const ta = new Date(ya, ma - 1, da).getTime();
     const tb = new Date(yb, mb - 1, db).getTime();
-    return tb - ta;
+    return tb - ta; 
   });
 
+  // Cálculos
   transactions.forEach(t => {
     let cat = appState.categories.includes(t.category) ? t.category : "Outros";
     grouped[cat].push(t);
@@ -120,6 +127,7 @@ function renderListsAndCharts(transactions, currentIncome) {
   const net = gross - refunds;
   const leftover = currentIncome - net;
 
+  // Atualiza Cards do Dashboard
   document.getElementById('month-gross').innerText = formatBRL(gross);
   document.getElementById('month-refunds').innerText = "- " + formatBRL(refunds);
   document.getElementById('month-net').innerText = formatBRL(net);
@@ -128,6 +136,7 @@ function renderListsAndCharts(transactions, currentIncome) {
   leftoverEl.innerText = formatBRL(leftover);
   leftoverEl.style.color = leftover >= 0 ? '#4CD964' : '#FF3B30';
 
+  // --- CÁLCULO DE SALDO DO ORÇAMENTO ---
   const view = appState.currentViewMonth;
   const budgetEl = document.getElementById('budget-remaining');
   if (budgetEl) {
@@ -143,9 +152,11 @@ function renderListsAndCharts(transactions, currentIncome) {
     }
   }
 
+  // Atualiza Gráficos e Resumos
   updateChart(catTotals);
   renderCategorySummary(catTotals, gross);
 
+  // --- RENDERIZA LISTA DETALHADA ---
   Object.keys(grouped).sort().forEach(cat => {
     const items = grouped[cat];
     if(!items || items.length === 0) return;
@@ -170,6 +181,7 @@ function renderListsAndCharts(transactions, currentIncome) {
       const div = document.createElement('div');
       div.className = 'tx-item';
 
+      // SWIPE TO DELETE (Mobile)
       let touchStartX = 0;
       let touchEndX = 0;
       div.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, {passive: true});
@@ -182,6 +194,7 @@ function renderListsAndCharts(transactions, currentIncome) {
       });
 
       if (appState.isEditMode) {
+        // --- MODO EDIÇÃO (INPUTS COMPLETOS) ---
         const options = appState.categories
           .map(c => `<option value="${c}" ${c === item.category ? 'selected' : ''}>${c}</option>`)
           .join('');
@@ -227,6 +240,7 @@ function renderListsAndCharts(transactions, currentIncome) {
             </div>
           </div>`;
       } else {
+        // --- MODO VISUALIZAÇÃO (CLEAN) ---
         div.onclick = () => window.editTransaction(item.id);
         div.innerHTML = `
           <div class="tx-row-main">
@@ -244,8 +258,10 @@ function renderListsAndCharts(transactions, currentIncome) {
             </div>
           </div>`;
       }
+
       listBox.appendChild(div);
     });
+
     catGroup.appendChild(listBox);
     output.appendChild(catGroup);
   });
@@ -289,7 +305,7 @@ function renderCategorySummary(catTotals, totalGross) {
   });
 }
 
-// --- GRÁFICO (CHART.JS) ---
+// --- GRÁFICO ---
 function updateChart(data) {
   const ctx = document.getElementById('expenseChart').getContext('2d');
   const activeCats = Object.keys(data).filter(k => data[k] > 0);
@@ -397,7 +413,8 @@ export function renderCategoryManager() {
   });
 }
 
-// --- RENDERIZAR PREVIEW DO ETL ---
+// --- RENDERIZAR PREVIEW DO ETL (ATUALIZADO) ---
+// Agora detecta e destaca visualmente novas categorias sugeridas pela IA
 export function renderEtlPreview(etlData, onConfirm) {
     let modal = document.getElementById('etl-modal');
     if (!modal) {
@@ -412,6 +429,10 @@ export function renderEtlPreview(etlData, onConfirm) {
                 </div>
                 <div class="modal-body" style="overflow-y: auto; padding: 15px;">
                     <div id="etl-status-card" class="highlight-card" style="margin: 0 0 15px 0; padding: 15px;"></div>
+                    <div id="etl-new-cats-alert" style="display:none; background:#FFF4CE; border:1px solid #FFCC00; border-radius:12px; padding:10px; margin-bottom:15px;">
+                        <div style="font-size:12px; font-weight:700; color:#997700; margin-bottom:5px;"><i class="fa-solid fa-lightbulb"></i> A IA sugeriu novas categorias:</div>
+                        <div id="etl-new-cats-list" style="display:flex; gap:5px; flex-wrap:wrap;"></div>
+                    </div>
                     <div id="etl-groups-area"></div>
                 </div>
                 <div style="padding: 15px; border-top: 1px solid #eee; background: white;">
@@ -441,15 +462,37 @@ export function renderEtlPreview(etlData, onConfirm) {
         ${!etlData.isValid ? `<div style="margin-top:10px; color:white; font-weight:bold; font-size:12px; background:rgba(0,0,0,0.2); padding:5px; border-radius:8px;">${icon} Diferença: R$ ${diff.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>` : ''}
     `;
 
+    // Detecta categorias novas
+    const newCats = [];
+    Object.keys(etlData.groups).forEach(cat => {
+        if (!appState.categories.includes(cat) && cat !== "Outros") {
+            newCats.push(cat);
+        }
+    });
+
+    const alertBox = document.getElementById('etl-new-cats-alert');
+    const alertList = document.getElementById('etl-new-cats-list');
+    
+    if(newCats.length > 0) {
+        alertBox.style.display = 'block';
+        alertList.innerHTML = newCats.map(c => `<span style="background:white; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:600; color:#333; border:1px solid #E5E5EA;">${c}</span>`).join('');
+    } else {
+        alertBox.style.display = 'none';
+    }
+
     const groupsArea = document.getElementById('etl-groups-area');
     groupsArea.innerHTML = '';
     
     Object.keys(etlData.groups).sort().forEach(cat => {
         const group = etlData.groups[cat];
+        // Adiciona label de "NOVA" ao lado do nome da categoria se for inédita
+        const isNew = newCats.includes(cat);
+        const badge = isNew ? `<span style="background:#FFCC00; color:black; padding:2px 6px; border-radius:6px; font-size:9px; margin-left:6px; vertical-align:middle;">✨ NOVA</span>` : '';
+
         const catHtml = `
-            <div style="margin-bottom: 15px; border: 1px solid #eee; border-radius: 12px; overflow: hidden;">
-                <div style="background:#f9f9f9; padding:10px; display:flex; justify-content:space-between; font-weight:bold; font-size:13px;">
-                    <span>${cat}</span>
+            <div style="margin-bottom: 15px; border: 1px solid #eee; border-radius: 12px; overflow: hidden; ${isNew ? 'border: 1px solid #FFCC00;' : ''}">
+                <div style="background:${isNew ? '#FFFDF5' : '#f9f9f9'}; padding:10px; display:flex; justify-content:space-between; align-items:center; font-weight:bold; font-size:13px;">
+                    <div>${cat} ${badge}</div>
                     <span>R$ ${group.total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
                 </div>
                 <div style="padding: 5px;">

@@ -1,12 +1,12 @@
 /**
  * MAIN - PONTO DE ENTRADA E CONTROLE
- * Estratégia de Importação: Substituição Inteligente (Garante fidelidade ao TXT)
  */
 import { auth, signInWithPopup, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase, resetAllData } from './firebase.js';
 import { appState } from './state.js';
 import { initViewSelector, filterAndRender, renderIncomeList, renderCategoryManager, renderEtlPreview } from './ui.js';
 import { lockBodyScroll, unlockBodyScroll, vibrate, formatBRL } from './utils.js';
 import { InvoiceETL } from './etl.js';
+import { DEFAULT_RULES } from './config.js'; // Importante para a IA saber o básico
 
 // --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -20,11 +20,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if(document.getElementById('manual-date')) document.getElementById('manual-date').value = todayISO;
     if(document.getElementById('manual-invoice-date')) document.getElementById('manual-invoice-date').value = todayISO;
 
-    // Auth
     const btnLogin = document.getElementById('btn-login');
     if(btnLogin) btnLogin.addEventListener('click', () => { vibrate(); signInWithPopup(auth); });
 
-    // UI Listeners
     const checkInstallment = document.getElementById('is-installment');
     if(checkInstallment) {
         checkInstallment.addEventListener('change', (e) => {
@@ -37,7 +35,6 @@ document.addEventListener('DOMContentLoaded', () => {
         filterAndRender();
     });
 
-    // Orçamento
     const budgetInput = document.getElementById('month-budget');
     if (budgetInput) {
         budgetInput.addEventListener('input', (e) => {
@@ -72,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnReset = document.getElementById('btn-reset-all');
     if(btnReset) {
         btnReset.addEventListener('click', async () => {
-            if(confirm("PERIGO: Isso apagará TUDO (Dados e Categorias).\nDeseja continuar?")) {
+            if(confirm("PERIGO: Isso apagará TUDO.\nDeseja continuar?")) {
                 const conf = prompt("Digite DELETAR para confirmar:");
                 if (conf === "DELETAR") {
                     vibrate(200);
@@ -80,8 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     appState.incomeDetails = {};
                     appState.monthlyBudgets = {};
                     appState.categoryRules = { "Outros": [] };
+                    appState.categories = ["Outros"];
                     await resetAllData();
-                    alert("Sistema zerado com sucesso.");
+                    alert("Sistema zerado.");
                     window.location.reload();
                 }
             }
@@ -218,7 +216,7 @@ window.renameCategory = (oldName, newName) => {
 };
 
 // ============================================================================
-// LÓGICA DE IMPORTAÇÃO (ETL + SUBSTITUIÇÃO INTELIGENTE)
+// LÓGICA DE IMPORTAÇÃO (ETL + IA + SUBSTITUIÇÃO INTELIGENTE)
 // ============================================================================
 
 async function handleFileUpload(file) {
@@ -226,50 +224,69 @@ async function handleFileUpload(file) {
     const targetMonth = document.getElementById('import-ref-month').value;
     if(!targetMonth) { alert("Selecione o mês."); return; }
     
+    // UI: Mostrar Loading
+    document.body.style.cursor = 'wait';
+    
     try {
         const textContent = await file.text();
         const etl = new InvoiceETL();
+        
         etl.extract(textContent);
         const newRulesDelta = etl.learn(appState.categoryRules);
-        etl.transform(targetMonth, appState.categoryRules);
+        
+        // IA: Mescla categorias do App + Categorias Padrão (para o caso de Reset) + Novas aprendidas
+        const defaultCats = Object.keys(DEFAULT_RULES);
+        const learnedCats = Object.keys(newRulesDelta);
+        const allCategories = [...new Set([...appState.categories, ...defaultCats, ...learnedCats])];
+
+        // MUDANÇA: await para esperar a IA
+        await etl.transform(targetMonth, appState.categoryRules, allCategories);
+        
         const previewData = etl.getPreviewData();
         
+        document.body.style.cursor = 'default';
+
         renderEtlPreview(previewData, async () => {
-            // --- SALVANDO CATEGORIAS ---
+            let addedCount = 0;
+            let updatedCount = 0;
+
+            // 1. Salva Aprendizado e Categorias Novas (ex: IA sugeriu "Casa")
+            // Verifica se a IA usou alguma categoria que não temos ainda
+            etl.transformedData.forEach(tx => {
+                const cat = tx.category;
+                if (!appState.categoryRules[cat]) {
+                    appState.categoryRules[cat] = [];
+                    if(!appState.categories.includes(cat)) appState.categories.push(cat);
+                }
+            });
+
+            // Salva regras do Learn
             if (previewData.learnedCount > 0) {
                 Object.keys(newRulesDelta).forEach(cat => {
-                    if (!appState.categoryRules[cat]) {
-                        appState.categoryRules[cat] = [];
-                        if(!appState.categories.includes(cat)) appState.categories.push(cat);
+                    if (appState.categoryRules[cat]) {
+                        newRulesDelta[cat].forEach(rule => {
+                            if (!appState.categoryRules[cat].includes(rule)) {
+                                appState.categoryRules[cat].push(rule);
+                            }
+                        });
                     }
-                    newRulesDelta[cat].forEach(rule => {
-                        if (!appState.categoryRules[cat].includes(rule)) appState.categoryRules[cat].push(rule);
-                    });
                 });
             }
 
-            // --- LÓGICA DE SUBSTITUIÇÃO (CORREÇÃO DE VALORES) ---
-            // 1. Removemos TODAS as transações importadas do mês alvo (mantendo as manuais)
-            // Isso garante que qualquer dado antigo/errado/duplicado seja limpo.
+            // 2. Limpeza do Mês (Substituição Inteligente)
             const keptTransactions = appState.transactions.filter(t => {
-                // Mantém se for de outro mês OU se for manual (id começa com MAN_)
                 return t.billMonth !== targetMonth || t.id.startsWith('MAN_');
             });
 
-            // 2. Separamos os dados do ETL: 
-            // - currentItems: Transações do mês atual (Substituem as antigas)
-            // - futureItems: Projeções futuras (Devem ser mescladas com cuidado)
             const currentItems = etl.transformedData.filter(t => t.billMonth === targetMonth);
             const futureItems = etl.transformedData.filter(t => t.billMonth > targetMonth);
 
-            // 3. Adicionamos os itens atuais (Fidelidade 100% ao TXT)
             const finalTransactions = [...keptTransactions, ...currentItems];
 
-            // 4. Mesclamos os itens futuros (para não duplicar projeções já existentes)
+            // 3. Mescla Futuro
             const normalize = (s) => s.toUpperCase().replace(/PARC(?:ELA)?/g, "").replace(/[^A-Z0-9]/g, "");
             
             futureItems.forEach(newTx => {
-                // Verifica se já existe essa projeção futura no banco (evita duplicação de parcelas)
                 const exists = finalTransactions.some(existing => 
                     existing.billMonth === newTx.billMonth &&
                     normalize(existing.description) === normalize(newTx.description) &&
@@ -277,14 +294,14 @@ async function handleFileUpload(file) {
                 );
                 if (!exists) {
                     finalTransactions.push(newTx);
+                    addedCount++; // Conta projeções novas
                 }
             });
 
-            // 5. Atualiza Estado e Salva
             appState.transactions = finalTransactions;
             await saveToFirebase();
             
-            alert(`Importação Concluída com Sucesso!\nDados de ${targetMonth} atualizados fielmente pelo arquivo.`);
+            alert(`Importação Concluída!\n\nDados do mês atualizados e ${addedCount} projeções futuras criadas.`);
             
             appState.currentViewMonth = targetMonth;
             const { initViewSelector, filterAndRender } = await import('./ui.js');
@@ -294,7 +311,11 @@ async function handleFileUpload(file) {
             unlockBodyScroll();
         });
 
-    } catch (e) { console.error(e); alert("Erro: " + e.message); }
+    } catch (e) { 
+        document.body.style.cursor = 'default';
+        console.error(e); 
+        alert("Erro: " + e.message); 
+    }
     
     document.getElementById('fileInput').value = '';
 }
