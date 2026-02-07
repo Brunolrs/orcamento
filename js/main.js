@@ -1,14 +1,15 @@
 /**
- * MAIN - VERSÃO FINAL (ANTI-LOOP & IN-APP BROWSER FIX)
+ * MAIN - PONTO DE ENTRADA E CONTROLE
+ * Versão: Correção "Missing Initial State" (Uso Exclusivo de Popup)
  */
-import { auth, provider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase, resetAllData } from './firebase.js';
+import { auth, provider, signInWithPopup, getRedirectResult, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase, resetAllData } from './firebase.js';
 import { appState } from './state.js';
 import { initViewSelector, filterAndRender, renderIncomeList, renderCategoryManager, renderEtlPreview } from './ui.js';
 import { lockBodyScroll, unlockBodyScroll, vibrate, extractKeyword } from './utils.js';
 import { InvoiceETL } from './etl.js';
 import { DEFAULT_RULES } from './config.js';
 
-// --- CONTROLE DE UI ---
+// --- CONTROLE DE UI (LOADING) ---
 function showLoading() {
     const overlay = document.getElementById('loading-overlay');
     if(overlay) overlay.style.display = 'flex';
@@ -18,11 +19,12 @@ function hideLoading() {
     if(overlay) overlay.style.display = 'none';
 }
 
-// --- APRENDIZADO ---
+// --- APRENDIZADO ATIVO ---
 function learnRule(description, category) {
     if (!description || !category || category === "Outros") return;
     const keyword = extractKeyword(description);
     if (keyword.length < 3) return;
+
     if (!appState.categoryRules[category]) {
         appState.categoryRules[category] = [];
         if(!appState.categories.includes(category)) appState.categories.push(category);
@@ -34,87 +36,50 @@ function learnRule(description, category) {
 
 // --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Verifica se estamos voltando de um login para manter o loading
-    const pendingLogin = localStorage.getItem('auth_pending');
-    if (pendingLogin) {
-        showLoading();
-    } else {
-        hideLoading();
-    }
+    // Inicia com loading para verificar estado
+    showLoading();
 
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
+    
     if(document.getElementById('import-ref-month')) document.getElementById('import-ref-month').value = `${yyyy}-${mm}`;
     
     const todayISO = today.toISOString().split('T')[0];
     if(document.getElementById('manual-date')) document.getElementById('manual-date').value = todayISO;
     if(document.getElementById('manual-invoice-date')) document.getElementById('manual-invoice-date').value = todayISO;
 
-    // --- LÓGICA DE LOGIN ---
+    // --- LÓGICA DE LOGIN (MODIFICADA PARA POPUP) ---
     const btnLogin = document.getElementById('btn-login');
     if (btnLogin) {
         btnLogin.addEventListener('click', () => {
             vibrate();
             
-            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            // Removemos o 'showLoading()' aqui para não cobrir o popup se ele demorar
+            // O Popup abre uma nova janela/aba sobre o site
             
-            // Tenta detectar navegador do WhatsApp/Instagram
-            const isInApp = /FBAV|FBAN|Instagram|WhatsApp/i.test(navigator.userAgent);
-
-            if (isMobile) {
-                if (isInApp) {
-                    alert("⚠️ Aviso: Navegadores do WhatsApp/Instagram costumam bloquear o login.\n\nSe falhar, clique nos 3 pontinhos e escolha 'Abrir no Navegador' (Chrome/Safari).");
-                }
-
-                // Marca que iniciamos um login
-                localStorage.setItem('auth_pending', 'true');
-                showLoading();
-                
-                signInWithRedirect(auth, provider).catch(error => {
-                    localStorage.removeItem('auth_pending');
-                    hideLoading();
-                    alert("Erro ao redirecionar: " + error.message);
+            signInWithPopup(auth, provider)
+                .then((result) => {
+                    console.log("Login via Popup realizado com sucesso!");
+                    // onAuthStateChanged cuidará da transição de tela
+                })
+                .catch((error) => {
+                    console.error("Erro no Popup:", error);
+                    
+                    if (error.code === 'auth/popup-blocked') {
+                        alert("⚠️ O navegador bloqueou a janela de login.\n\nPor favor, permita Popups para este site ou clique novamente.");
+                    } else if (error.code === 'auth/popup-closed-by-user') {
+                        // Usuário fechou, não faz nada
+                    } else if (error.code === 'auth/cancelled-popup-request') {
+                        // Conflito de popups, ignora
+                    } else {
+                        alert("Erro no Login: " + error.message);
+                    }
                 });
-            } else {
-                signInWithPopup(auth, provider).catch(err => {
-                    console.warn("Popup falhou, tentando redirect...", err);
-                    localStorage.setItem('auth_pending', 'true');
-                    signInWithRedirect(auth, provider);
-                });
-            }
         });
     }
 
-    // --- PROCESSAMENTO DO RETORNO ---
-    getRedirectResult(auth)
-        .then((result) => {
-            if (result) {
-                console.log("Login concluído com sucesso.");
-                localStorage.removeItem('auth_pending');
-                // onAuthStateChanged cuidará da tela
-            } else {
-                // SE NADA VOLTOU, MAS TÍNHAMOS UM LOGIN PENDENTE
-                if (localStorage.getItem('auth_pending')) {
-                    console.warn("Login perdido pelo navegador.");
-                    // Removemos a trava para não ficar em loop eterno
-                    localStorage.removeItem('auth_pending');
-                    hideLoading();
-                    alert("O navegador perdeu os dados do login.\n\nPor favor, abra este site no Chrome ou Safari nativo.");
-                }
-            }
-        })
-        .catch((error) => {
-            localStorage.removeItem('auth_pending');
-            hideLoading();
-            if (error.code === 'auth/unauthorized-domain') {
-                alert("Erro: Domínio não autorizado no Firebase.\nAdicione 'brunolrs.github.io' no Console.");
-            } else {
-                alert("Erro no Login: " + error.message);
-            }
-        });
-
-    // ... Restante dos Listeners (Mantidos iguais) ...
+    // --- OUTROS LISTENERS (Mantidos) ---
     const checkInstallment = document.getElementById('is-installment');
     if(checkInstallment) {
         checkInstallment.addEventListener('change', (e) => {
@@ -155,10 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('btn-logout').addEventListener('click', () => {
         showLoading();
-        signOut(auth).then(() => {
-            localStorage.removeItem('auth_pending');
-            hideLoading();
-        });
+        signOut(auth).then(() => hideLoading());
     });
     
     document.getElementById('btn-delete-month').addEventListener('click', () => { vibrate(100); deleteCurrentMonth(); });
@@ -166,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnReset = document.getElementById('btn-reset-all');
     if(btnReset) {
         btnReset.addEventListener('click', async () => {
-            if(confirm("PERIGO: Apagar TUDO?\nDeseja continuar?")) {
+            if(confirm("PERIGO: Isso apagará TODOS os dados.\nDeseja continuar?")) {
                 const conf = prompt("Digite DELETAR:");
                 if (conf === "DELETAR") {
                     vibrate(200);
@@ -222,12 +184,8 @@ function setupModal(modalId, openBtnId, closeBtnId, openCallback) {
 
 // 4. MONITOR DE AUTENTICAÇÃO
 onAuthStateChanged(auth, (user) => {
-    // Verifica flag
-    const isPending = localStorage.getItem('auth_pending');
-
     if (user) {
-        // SUCESSO: Limpa flag e entra
-        localStorage.removeItem('auth_pending');
+        // Logado
         appState.user = user;
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app-screen').style.display = 'block';
@@ -235,21 +193,14 @@ onAuthStateChanged(auth, (user) => {
         startRealtimeListener(user.uid, () => {
             initViewSelector();
             filterAndRender();
-            hideLoading();
+            hideLoading(); 
         });
     } else {
-        // FALHA OU DESLOGADO
-        if (isPending) {
-            // Se tem pendência mas não tem user, esperamos o getRedirectResult resolver
-            // Se getRedirectResult falhar (cair no else lá em cima), ele limpa a flag e tira o loading
-            console.log("Aguardando verificação do redirect...");
-        } else {
-            // Estado normal deslogado
-            appState.user = null;
-            document.getElementById('login-screen').style.display = 'flex';
-            document.getElementById('app-screen').style.display = 'none';
-            hideLoading();
-        }
+        // Deslogado
+        appState.user = null;
+        document.getElementById('login-screen').style.display = 'flex';
+        document.getElementById('app-screen').style.display = 'none';
+        hideLoading();
     }
 });
 
@@ -380,6 +331,7 @@ async function handleFileUpload(file) {
     try {
         const textContent = await file.text();
         const etl = new InvoiceETL();
+        
         etl.extract(textContent);
         const newRulesDelta = etl.learn(appState.categoryRules);
         const defaultCats = Object.keys(DEFAULT_RULES);
