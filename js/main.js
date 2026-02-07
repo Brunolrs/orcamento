@@ -9,6 +9,102 @@ import { lockBodyScroll, unlockBodyScroll, vibrate, extractKeyword } from './uti
 import { InvoiceETL } from './etl.js';
 import { DEFAULT_RULES } from './config.js';
 
+// ... (imports permanecem iguais)
+
+// --- DIAGNÓSTICO DE LOGIN ---
+document.addEventListener('DOMContentLoaded', () => {
+    // Alert 1: Saber se a página carregou
+    // alert("1. App Iniciado. Verificando redirecionamento..."); 
+
+    // Verificamos se existe a "bandeira" que deixamos antes de sair
+    const isRedirecting = sessionStorage.getItem('auth_in_progress');
+    
+    // Se tiver a bandeira, mostramos o loading e avisamos
+    if (isRedirecting) {
+        // alert("2. Voltando do Google! Aguardando confirmação...");
+        showLoading();
+    } else {
+        hideLoading();
+    }
+
+    // ... (Mantenha configurações de data, etc...)
+
+    const btnLogin = document.getElementById('btn-login');
+    if (btnLogin) {
+        btnLogin.addEventListener('click', () => {
+            vibrate();
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            if (isMobile) {
+                // Alert 3: Antes de sair pro Google
+                alert("3. Iniciando Redirecionamento Mobile...");
+                
+                // MARCA A BANDEIRA
+                sessionStorage.setItem('auth_in_progress', 'true');
+                showLoading();
+                
+                signInWithRedirect(auth, provider).catch(error => {
+                    sessionStorage.removeItem('auth_in_progress');
+                    hideLoading();
+                    alert("ERRO CRÍTICO NO REDIRECT: " + error.message);
+                });
+            } else {
+                // Desktop...
+                signInWithPopup(auth, provider).catch(console.error);
+            }
+        });
+    }
+
+    // PROCESSA O RETORNO
+    getRedirectResult(auth)
+        .then((result) => {
+            if (result) {
+                alert("4. SUCESSO! O Google devolveu o usuário: " + result.user.email);
+                sessionStorage.removeItem('auth_in_progress');
+            } else {
+                // Se cair aqui e você estava esperando login, algo deu errado
+                if (sessionStorage.getItem('auth_in_progress')) {
+                    alert("5. ALERTA: Voltou do Google mas sem usuário. O Firebase pode ter bloqueado o domínio.");
+                }
+            }
+        })
+        .catch((error) => {
+            hideLoading();
+            sessionStorage.removeItem('auth_in_progress');
+            alert("ERRO NO RETORNO: " + error.code + " - " + error.message);
+        });
+
+    // ... (Resto do código)
+});
+
+// MONITOR DE ESTADO
+onAuthStateChanged(auth, (user) => {
+    const isRedirecting = sessionStorage.getItem('auth_in_progress');
+
+    if (user) {
+        // alert("6. Auth State: LOGADO! Email: " + user.email);
+        appState.user = user;
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app-screen').style.display = 'block';
+        startRealtimeListener(user.uid, () => {
+            initViewSelector();
+            filterAndRender();
+            hideLoading();
+        });
+    } else {
+        if (isRedirecting) {
+            // Se cair aqui, é o "LIMBO". O site recarregou, mas o usuário ainda é null.
+            console.log("Aguardando...");
+        } else {
+            // alert("7. Auth State: DESLOGADO.");
+            appState.user = null;
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('app-screen').style.display = 'none';
+            hideLoading();
+        }
+    }
+});
+
 // --- CONTROLE DE UI (LOADING) ---
 function showLoading() {
     const overlay = document.getElementById('loading-overlay');
