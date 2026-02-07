@@ -1,8 +1,7 @@
 /**
  * MAIN - PONTO DE ENTRADA E CONTROLE
- * Versão Final: Login Mobile Corrigido + IA + ETL Inteligente
+ * Versão Final: Login Mobile + IA + ETL Inteligente (Substituição) + Aprendizado Ativo
  */
-// 1. ADICIONE 'provider' NA IMPORTAÇÃO ABAIXO
 import { auth, provider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase, resetAllData } from './firebase.js';
 import { appState } from './state.js';
 import { initViewSelector, filterAndRender, renderIncomeList, renderCategoryManager, renderEtlPreview } from './ui.js';
@@ -10,7 +9,7 @@ import { lockBodyScroll, unlockBodyScroll, vibrate, extractKeyword } from './uti
 import { InvoiceETL } from './etl.js';
 import { DEFAULT_RULES } from './config.js';
 
-// --- APRENDIZADO ATIVO ---
+// --- APRENDIZADO ATIVO (MEMÓRIA DO SISTEMA) ---
 function learnRule(description, category) {
     if (!description || !category || category === "Outros") return;
     
@@ -40,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(document.getElementById('manual-date')) document.getElementById('manual-date').value = todayISO;
     if(document.getElementById('manual-invoice-date')) document.getElementById('manual-invoice-date').value = todayISO;
 
-    // 2. LÓGICA DE LOGIN CORRIGIDA
+    // LOGIN
     const btnLogin = document.getElementById('btn-login');
     if (btnLogin) {
         btnLogin.addEventListener('click', () => {
@@ -48,10 +47,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             
             if (isMobile) {
-                // Mobile: Usa o provider importado diretamente (SEM import dinâmico)
                 signInWithRedirect(auth, provider);
             } else {
-                // Desktop: Tenta Popup, se falhar vai de Redirect
                 signInWithPopup(auth, provider).catch(err => {
                     console.warn("Popup falhou, tentando redirect...", err);
                     signInWithRedirect(auth, provider);
@@ -60,12 +57,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Processa retorno do login via redirecionamento (Essencial para Mobile)
     getRedirectResult(auth).then((result) => {
         if (result) console.log("Login móvel realizado com sucesso!");
     }).catch((error) => console.error("Erro no login móvel:", error));
 
-    // --- RESTANTE DOS LISTENERS ---
+    // LISTENERS UI
     const checkInstallment = document.getElementById('is-installment');
     if(checkInstallment) {
         checkInstallment.addEventListener('change', (e) => {
@@ -119,7 +115,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     appState.monthlyBudgets = {};
                     appState.categoryRules = { "Outros": [] };
                     appState.categories = ["Outros"];
-                    
                     await resetAllData();
                     alert("Sistema reiniciado do zero.");
                     window.location.reload();
@@ -301,6 +296,7 @@ window.renameCategory = (oldName, newName) => {
     }
 };
 
+// --- IMPORTAÇÃO INTELIGENTE (CORREÇÃO DE SALDO) ---
 async function handleFileUpload(file) {
     if(!file) return;
     const targetMonth = document.getElementById('import-ref-month').value;
@@ -328,6 +324,7 @@ async function handleFileUpload(file) {
         renderEtlPreview(previewData, async () => {
             let addedCount = 0;
 
+            // Salva Categorias da IA/ETL
             etl.transformedData.forEach(tx => {
                 const cat = tx.category;
                 if (!appState.categoryRules[cat]) {
@@ -348,15 +345,22 @@ async function handleFileUpload(file) {
                 });
             }
 
+            // --- LÓGICA DE SUBSTITUIÇÃO (CORREÇÃO DE VALORES) ---
+            // 1. Removemos TODAS as transações importadas do mês alvo (mantendo manuais)
             const keptTransactions = appState.transactions.filter(t => {
                 return t.billMonth !== targetMonth || t.id.startsWith('MAN_');
             });
 
+            // 2. Dados limpos do ETL para ESTE mês
             const currentItems = etl.transformedData.filter(t => t.billMonth === targetMonth);
+            
+            // 3. Projeções futuras
             const futureItems = etl.transformedData.filter(t => t.billMonth > targetMonth);
 
+            // 4. Adiciona mês atual limpo
             const finalTransactions = [...keptTransactions, ...currentItems];
 
+            // 5. Mescla futuro (não duplica se já existir)
             const normalize = (s) => s.toUpperCase().replace(/PARC(?:ELA)?/g, "").replace(/[^A-Z0-9]/g, "");
             
             futureItems.forEach(newTx => {
@@ -374,7 +378,7 @@ async function handleFileUpload(file) {
             appState.transactions = finalTransactions;
             await saveToFirebase();
             
-            alert(`Importação Concluída!\n\nDados de ${targetMonth} atualizados e ${addedCount} projeções futuras criadas.`);
+            alert(`Importação Concluída!\n\nDados de ${targetMonth} substituídos e corrigidos.\n${addedCount} projeções futuras criadas.`);
             
             appState.currentViewMonth = targetMonth;
             const { initViewSelector, filterAndRender } = await import('./ui.js');
@@ -427,6 +431,7 @@ function saveManualTransaction() {
     
     const [yB, mB, dB] = dateBuyStr.split('-').map(Number);
     const formattedDateBuy = `${String(dB).padStart(2,'0')}.${String(mB).padStart(2,'0')}.${yB}`;
+    
     const [yI, mI, dI] = dateInvStr.split('-').map(Number);
 
     if(editId) {
@@ -435,7 +440,15 @@ function saveManualTransaction() {
             const formattedDateInv = `${String(dI).padStart(2,'0')}.${String(mI).padStart(2,'0')}.${yI}`;
             const billMonth = `${yI}-${String(mI).padStart(2,'0')}`;
             if (appState.transactions[index].category !== cat) learnRule(desc, cat);
-            appState.transactions[index] = { ...appState.transactions[index], date: formattedDateBuy, invoiceDate: formattedDateInv, billMonth: billMonth, description: desc, amount: amount, category: cat };
+            appState.transactions[index] = { 
+                ...appState.transactions[index], 
+                date: formattedDateBuy, 
+                invoiceDate: formattedDateInv, 
+                billMonth: billMonth, 
+                description: desc, 
+                amount: amount, 
+                category: cat 
+            };
         }
     } else {
         learnRule(desc, cat);
@@ -450,7 +463,14 @@ function saveManualTransaction() {
             let finalDesc = desc;
             if (isInstallment) finalDesc = `${desc} (${i + 1}/${totalInstallments})`;
             appState.transactions.push({ 
-                id: "MAN_" + Date.now() + "_" + i, date: formattedDateBuy, invoiceDate: formattedDateInv, billMonth: billMonth, description: finalDesc, amount: amount, category: cat, isBillPayment: false 
+                id: "MAN_" + Date.now() + "_" + i, 
+                date: formattedDateBuy, 
+                invoiceDate: formattedDateInv, 
+                billMonth: billMonth, 
+                description: finalDesc, 
+                amount: amount, 
+                category: cat, 
+                isBillPayment: false 
             });
         }
         if (isInstallment) alert(`${loops} parcelas geradas.`);
