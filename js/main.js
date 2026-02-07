@@ -1,6 +1,6 @@
 /**
  * MAIN - PONTO DE ENTRADA E CONTROLE
- * Versão Final: Login Mobile + IA + ETL Inteligente (Substituição) + Aprendizado Ativo
+ * Correção: Login Mobile, Loading State e Tratamento de Erros de Redirect
  */
 import { auth, provider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase, resetAllData } from './firebase.js';
 import { appState } from './state.js';
@@ -9,10 +9,19 @@ import { lockBodyScroll, unlockBodyScroll, vibrate, extractKeyword } from './uti
 import { InvoiceETL } from './etl.js';
 import { DEFAULT_RULES } from './config.js';
 
-// --- APRENDIZADO ATIVO (MEMÓRIA DO SISTEMA) ---
+// --- CONTROLE DE UI (LOADING) ---
+function showLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if(overlay) overlay.style.display = 'flex';
+}
+function hideLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if(overlay) overlay.style.display = 'none';
+}
+
+// --- APRENDIZADO ATIVO ---
 function learnRule(description, category) {
     if (!description || !category || category === "Outros") return;
-    
     const keyword = extractKeyword(description);
     if (keyword.length < 3) return;
 
@@ -20,15 +29,16 @@ function learnRule(description, category) {
         appState.categoryRules[category] = [];
         if(!appState.categories.includes(category)) appState.categories.push(category);
     }
-
     if (!appState.categoryRules[category].includes(keyword)) {
         appState.categoryRules[category].push(keyword);
-        console.log(`🧠 Aprendizado Ativo: "${keyword}" -> "${category}"`);
     }
 }
 
 // --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', () => {
+    // Garante que o loading comece visível
+    showLoading();
+
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -39,29 +49,47 @@ document.addEventListener('DOMContentLoaded', () => {
     if(document.getElementById('manual-date')) document.getElementById('manual-date').value = todayISO;
     if(document.getElementById('manual-invoice-date')) document.getElementById('manual-invoice-date').value = todayISO;
 
-    // LOGIN
+    // BOTÃO DE LOGIN
     const btnLogin = document.getElementById('btn-login');
     if (btnLogin) {
         btnLogin.addEventListener('click', () => {
             vibrate();
+            showLoading(); // Mostra loading enquanto redireciona
+            
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             
             if (isMobile) {
-                signInWithRedirect(auth, provider);
+                // Mobile: Redirecionamento
+                signInWithRedirect(auth, provider).catch(error => {
+                    hideLoading();
+                    alert("Erro no redirecionamento: " + error.message);
+                });
             } else {
+                // Desktop: Popup
                 signInWithPopup(auth, provider).catch(err => {
                     console.warn("Popup falhou, tentando redirect...", err);
                     signInWithRedirect(auth, provider);
-                });
+                }).finally(() => hideLoading()); // Esconde loading se o popup fechar
             }
         });
     }
 
-    getRedirectResult(auth).then((result) => {
-        if (result) console.log("Login móvel realizado com sucesso!");
-    }).catch((error) => console.error("Erro no login móvel:", error));
+    // PROCESSA RETORNO DO REDIRECIONAMENTO (MOBILE)
+    getRedirectResult(auth)
+        .then((result) => {
+            if (result) {
+                console.log("Login mobile recuperado com sucesso.");
+                // onAuthStateChanged vai lidar com a UI
+            }
+        })
+        .catch((error) => {
+            hideLoading();
+            console.error("Erro no login móvel:", error);
+            // Mostra alerta no celular para debug
+            alert("Falha no Login: " + error.message);
+        });
 
-    // LISTENERS UI
+    // --- OUTROS LISTENERS (Mantidos iguais) ---
     const checkInstallment = document.getElementById('is-installment');
     if(checkInstallment) {
         checkInstallment.addEventListener('change', (e) => {
@@ -100,7 +128,11 @@ document.addEventListener('DOMContentLoaded', () => {
     btnToggleMenu.addEventListener('click', (e) => { e.stopPropagation(); vibrate(); dropdown.classList.toggle('show'); });
     window.addEventListener('click', () => { if (dropdown.classList.contains('show')) dropdown.classList.remove('show'); });
 
-    document.getElementById('btn-logout').addEventListener('click', () => signOut(auth));
+    document.getElementById('btn-logout').addEventListener('click', () => {
+        showLoading();
+        signOut(auth).then(() => hideLoading());
+    });
+    
     document.getElementById('btn-delete-month').addEventListener('click', () => { vibrate(100); deleteCurrentMonth(); });
     
     const btnReset = document.getElementById('btn-reset-all');
@@ -110,12 +142,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const conf = prompt("Digite DELETAR para confirmar:");
                 if (conf === "DELETAR") {
                     vibrate(200);
+                    showLoading();
                     appState.transactions = [];
                     appState.incomeDetails = {};
                     appState.monthlyBudgets = {};
                     appState.categoryRules = { "Outros": [] };
                     appState.categories = ["Outros"];
                     await resetAllData();
+                    hideLoading();
                     alert("Sistema reiniciado do zero.");
                     window.location.reload();
                 }
@@ -158,19 +192,24 @@ function setupModal(modalId, openBtnId, closeBtnId, openCallback) {
     }
 }
 
+// MONITOR DE AUTENTICAÇÃO (CONTROLA QUAL TELA MOSTRAR)
 onAuthStateChanged(auth, (user) => {
     if (user) {
+        // Usuário logado
         appState.user = user;
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app-screen').style.display = 'block';
         startRealtimeListener(user.uid, () => {
             initViewSelector();
             filterAndRender();
+            hideLoading(); // Só esconde o loading quando os dados chegarem
         });
     } else {
+        // Usuário deslogado
         appState.user = null;
         document.getElementById('login-screen').style.display = 'flex';
         document.getElementById('app-screen').style.display = 'none';
+        hideLoading(); // Esconde loading e mostra login
     }
 });
 
@@ -296,13 +335,13 @@ window.renameCategory = (oldName, newName) => {
     }
 };
 
-// --- IMPORTAÇÃO INTELIGENTE (CORREÇÃO DE SALDO) ---
 async function handleFileUpload(file) {
     if(!file) return;
     const targetMonth = document.getElementById('import-ref-month').value;
     if(!targetMonth) { alert("Selecione o mês."); return; }
     
     document.body.style.cursor = 'wait';
+    showLoading(); // Mostra loading visual durante importação
     
     try {
         const textContent = await file.text();
@@ -320,11 +359,11 @@ async function handleFileUpload(file) {
         const previewData = etl.getPreviewData();
         
         document.body.style.cursor = 'default';
+        hideLoading();
 
         renderEtlPreview(previewData, async () => {
             let addedCount = 0;
 
-            // Salva Categorias da IA/ETL
             etl.transformedData.forEach(tx => {
                 const cat = tx.category;
                 if (!appState.categoryRules[cat]) {
@@ -345,22 +384,15 @@ async function handleFileUpload(file) {
                 });
             }
 
-            // --- LÓGICA DE SUBSTITUIÇÃO (CORREÇÃO DE VALORES) ---
-            // 1. Removemos TODAS as transações importadas do mês alvo (mantendo manuais)
             const keptTransactions = appState.transactions.filter(t => {
                 return t.billMonth !== targetMonth || t.id.startsWith('MAN_');
             });
 
-            // 2. Dados limpos do ETL para ESTE mês
             const currentItems = etl.transformedData.filter(t => t.billMonth === targetMonth);
-            
-            // 3. Projeções futuras
             const futureItems = etl.transformedData.filter(t => t.billMonth > targetMonth);
 
-            // 4. Adiciona mês atual limpo
             const finalTransactions = [...keptTransactions, ...currentItems];
 
-            // 5. Mescla futuro (não duplica se já existir)
             const normalize = (s) => s.toUpperCase().replace(/PARC(?:ELA)?/g, "").replace(/[^A-Z0-9]/g, "");
             
             futureItems.forEach(newTx => {
@@ -378,7 +410,7 @@ async function handleFileUpload(file) {
             appState.transactions = finalTransactions;
             await saveToFirebase();
             
-            alert(`Importação Concluída!\n\nDados de ${targetMonth} substituídos e corrigidos.\n${addedCount} projeções futuras criadas.`);
+            alert(`Importação Concluída!\n\nDados de ${targetMonth} atualizados e ${addedCount} projeções futuras criadas.`);
             
             appState.currentViewMonth = targetMonth;
             const { initViewSelector, filterAndRender } = await import('./ui.js');
@@ -391,6 +423,7 @@ async function handleFileUpload(file) {
 
     } catch (e) { 
         document.body.style.cursor = 'default';
+        hideLoading();
         console.error(e); 
         alert("Erro na importação: " + e.message); 
     }
@@ -455,13 +488,17 @@ function saveManualTransaction() {
         const loops = isInstallment ? totalInstallments : 1;
         for (let i = 0; i < loops; i++) {
             let currentInvDate = new Date(yI, mI - 1 + i, dI);
+            
             const curY = currentInvDate.getFullYear();
             const curM = String(currentInvDate.getMonth() + 1).padStart(2, '0');
             const curD = String(currentInvDate.getDate()).padStart(2, '0');
+            
             const formattedDateInv = `${curD}.${curM}.${curY}`;
             const billMonth = `${curY}-${curM}`;
+
             let finalDesc = desc;
             if (isInstallment) finalDesc = `${desc} (${i + 1}/${totalInstallments})`;
+
             appState.transactions.push({ 
                 id: "MAN_" + Date.now() + "_" + i, 
                 date: formattedDateBuy, 
@@ -475,9 +512,11 @@ function saveManualTransaction() {
         }
         if (isInstallment) alert(`${loops} parcelas geradas.`);
     }
+
     saveToFirebase();
     modal.style.display = 'none';
     unlockBodyScroll();
+    
     if(appState.currentViewMonth !== "ALL" && !editId) initViewSelector();
     filterAndRender();
 }
@@ -487,13 +526,16 @@ function openManualModal(txToEdit = null) {
     const select = document.getElementById('manual-cat');
     const btnDelete = document.getElementById('btn-delete-manual');
     const valInput = document.getElementById('manual-val');
+    
     select.innerHTML = '';
     appState.categories.sort().forEach(cat => { const opt = document.createElement('option'); opt.value = cat; opt.text = cat; select.add(opt); });
+    
     valInput.oninput = (e) => {
         let value = e.target.value.replace(/\D/g, "");
         if (value === "") { e.target.value = ""; return; }
         e.target.value = (parseInt(value) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
+
     const checkInstallment = document.getElementById('is-installment');
     const divOptions = document.getElementById('installment-options');
     const inputCount = document.getElementById('installments-count');
@@ -503,11 +545,13 @@ function openManualModal(txToEdit = null) {
         divOptions.style.display = 'none';
         inputCount.value = 2;
     }
+
     if(btnDelete) {
         const newBtn = btnDelete.cloneNode(true);
         btnDelete.parentNode.replaceChild(newBtn, btnDelete);
         newBtn.addEventListener('click', () => { if(modal.dataset.editId) window.deleteTransaction(modal.dataset.editId); });
     }
+
     if(txToEdit) {
         document.getElementById('manual-modal-title').innerText = "Editar";
         modal.dataset.editId = txToEdit.id;
