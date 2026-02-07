@@ -1,6 +1,6 @@
 /**
  * MAIN - PONTO DE ENTRADA E CONTROLE
- * Correção: Login Mobile, Loading State e Tratamento de Erros de Redirect
+ * Correção: Tela de Loading para evitar loop no login mobile
  */
 import { auth, provider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase, resetAllData } from './firebase.js';
 import { appState } from './state.js';
@@ -36,7 +36,7 @@ function learnRule(description, category) {
 
 // --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Garante que o loading comece visível
+    // 1. GARANTE QUE O LOADING COMECE VISÍVEL
     showLoading();
 
     const today = new Date();
@@ -49,47 +49,47 @@ document.addEventListener('DOMContentLoaded', () => {
     if(document.getElementById('manual-date')) document.getElementById('manual-date').value = todayISO;
     if(document.getElementById('manual-invoice-date')) document.getElementById('manual-invoice-date').value = todayISO;
 
-    // BOTÃO DE LOGIN
+    // 2. BOTÃO DE LOGIN COM TRATAMENTO DE ERRO
     const btnLogin = document.getElementById('btn-login');
     if (btnLogin) {
         btnLogin.addEventListener('click', () => {
             vibrate();
-            showLoading(); // Mostra loading enquanto redireciona
+            showLoading(); // Bloqueia a tela ao clicar
             
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             
             if (isMobile) {
-                // Mobile: Redirecionamento
+                // Mobile: Redireciona
                 signInWithRedirect(auth, provider).catch(error => {
                     hideLoading();
-                    alert("Erro no redirecionamento: " + error.message);
+                    alert("Erro no Login Mobile: " + error.message);
                 });
             } else {
                 // Desktop: Popup
                 signInWithPopup(auth, provider).catch(err => {
                     console.warn("Popup falhou, tentando redirect...", err);
                     signInWithRedirect(auth, provider);
-                }).finally(() => hideLoading()); // Esconde loading se o popup fechar
+                }).finally(() => {
+                    // Nota: No popup, o finally roda quando fecha a janela. 
+                    // No redirect, a página recarrega, então o finally não roda aqui.
+                });
             }
         });
     }
 
-    // PROCESSA RETORNO DO REDIRECIONAMENTO (MOBILE)
+    // 3. PROCESSA RETORNO DO REDIRECT (MOBILE)
     getRedirectResult(auth)
         .then((result) => {
-            if (result) {
-                console.log("Login mobile recuperado com sucesso.");
-                // onAuthStateChanged vai lidar com a UI
-            }
+            if (result) console.log("Retorno do Google processado com sucesso.");
         })
         .catch((error) => {
             hideLoading();
-            console.error("Erro no login móvel:", error);
-            // Mostra alerta no celular para debug
-            alert("Falha no Login: " + error.message);
+            console.error("Erro no retorno do login:", error);
+            // ALERTA DE DEBUG: Isso vai te dizer se o domínio está bloqueado
+            alert("Falha ao processar login: " + error.message);
         });
 
-    // --- OUTROS LISTENERS (Mantidos iguais) ---
+    // --- OUTROS LISTENERS ---
     const checkInstallment = document.getElementById('is-installment');
     if(checkInstallment) {
         checkInstallment.addEventListener('change', (e) => {
@@ -130,7 +130,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('btn-logout').addEventListener('click', () => {
         showLoading();
-        signOut(auth).then(() => hideLoading());
+        signOut(auth).then(() => {
+            // O onAuthStateChanged vai lidar com a UI
+        });
     });
     
     document.getElementById('btn-delete-month').addEventListener('click', () => { vibrate(100); deleteCurrentMonth(); });
@@ -138,8 +140,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnReset = document.getElementById('btn-reset-all');
     if(btnReset) {
         btnReset.addEventListener('click', async () => {
-            if(confirm("PERIGO: Isso apagará TODOS os dados e categorias.\nDeseja continuar?")) {
-                const conf = prompt("Digite DELETAR para confirmar:");
+            if(confirm("PERIGO: Isso apagará TODOS os dados.\nDeseja continuar?")) {
+                const conf = prompt("Digite DELETAR:");
                 if (conf === "DELETAR") {
                     vibrate(200);
                     showLoading();
@@ -150,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     appState.categories = ["Outros"];
                     await resetAllData();
                     hideLoading();
-                    alert("Sistema reiniciado do zero.");
+                    alert("Sistema zerado.");
                     window.location.reload();
                 }
             }
@@ -192,24 +194,27 @@ function setupModal(modalId, openBtnId, closeBtnId, openCallback) {
     }
 }
 
-// MONITOR DE AUTENTICAÇÃO (CONTROLA QUAL TELA MOSTRAR)
+// 4. MONITOR DE AUTENTICAÇÃO (O "JUÍZ" DA TELA)
 onAuthStateChanged(auth, (user) => {
+    // Esconde o loading SOMENTE quando temos certeza se está logado ou não
+    
     if (user) {
-        // Usuário logado
+        // Logado com sucesso
         appState.user = user;
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app-screen').style.display = 'block';
+        
         startRealtimeListener(user.uid, () => {
             initViewSelector();
             filterAndRender();
-            hideLoading(); // Só esconde o loading quando os dados chegarem
+            hideLoading(); // Só libera a tela quando os dados chegarem
         });
     } else {
-        // Usuário deslogado
+        // Deslogado
         appState.user = null;
         document.getElementById('login-screen').style.display = 'flex';
         document.getElementById('app-screen').style.display = 'none';
-        hideLoading(); // Esconde loading e mostra login
+        hideLoading(); // Libera a tela para o usuário tentar logar
     }
 });
 
@@ -341,7 +346,7 @@ async function handleFileUpload(file) {
     if(!targetMonth) { alert("Selecione o mês."); return; }
     
     document.body.style.cursor = 'wait';
-    showLoading(); // Mostra loading visual durante importação
+    showLoading();
     
     try {
         const textContent = await file.text();
