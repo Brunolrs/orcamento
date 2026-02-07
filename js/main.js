@@ -1,6 +1,5 @@
 /**
- * MAIN - PONTO DE ENTRADA E CONTROLE
- * Versão Final: Login Mobile Estável (Com memória de sessão para evitar loop)
+ * MAIN - VERSÃO FINAL (ANTI-LOOP & IN-APP BROWSER FIX)
  */
 import { auth, provider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase, resetAllData } from './firebase.js';
 import { appState } from './state.js';
@@ -9,103 +8,7 @@ import { lockBodyScroll, unlockBodyScroll, vibrate, extractKeyword } from './uti
 import { InvoiceETL } from './etl.js';
 import { DEFAULT_RULES } from './config.js';
 
-// ... (imports permanecem iguais)
-
-// --- DIAGNÓSTICO DE LOGIN ---
-document.addEventListener('DOMContentLoaded', () => {
-    // Alert 1: Saber se a página carregou
-    // alert("1. App Iniciado. Verificando redirecionamento..."); 
-
-    // Verificamos se existe a "bandeira" que deixamos antes de sair
-    const isRedirecting = sessionStorage.getItem('auth_in_progress');
-    
-    // Se tiver a bandeira, mostramos o loading e avisamos
-    if (isRedirecting) {
-        // alert("2. Voltando do Google! Aguardando confirmação...");
-        showLoading();
-    } else {
-        hideLoading();
-    }
-
-    // ... (Mantenha configurações de data, etc...)
-
-    const btnLogin = document.getElementById('btn-login');
-    if (btnLogin) {
-        btnLogin.addEventListener('click', () => {
-            vibrate();
-            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            
-            if (isMobile) {
-                // Alert 3: Antes de sair pro Google
-                alert("3. Iniciando Redirecionamento Mobile...");
-                
-                // MARCA A BANDEIRA
-                sessionStorage.setItem('auth_in_progress', 'true');
-                showLoading();
-                
-                signInWithRedirect(auth, provider).catch(error => {
-                    sessionStorage.removeItem('auth_in_progress');
-                    hideLoading();
-                    alert("ERRO CRÍTICO NO REDIRECT: " + error.message);
-                });
-            } else {
-                // Desktop...
-                signInWithPopup(auth, provider).catch(console.error);
-            }
-        });
-    }
-
-    // PROCESSA O RETORNO
-    getRedirectResult(auth)
-        .then((result) => {
-            if (result) {
-                alert("4. SUCESSO! O Google devolveu o usuário: " + result.user.email);
-                sessionStorage.removeItem('auth_in_progress');
-            } else {
-                // Se cair aqui e você estava esperando login, algo deu errado
-                if (sessionStorage.getItem('auth_in_progress')) {
-                    alert("5. ALERTA: Voltou do Google mas sem usuário. O Firebase pode ter bloqueado o domínio.");
-                }
-            }
-        })
-        .catch((error) => {
-            hideLoading();
-            sessionStorage.removeItem('auth_in_progress');
-            alert("ERRO NO RETORNO: " + error.code + " - " + error.message);
-        });
-
-    // ... (Resto do código)
-});
-
-// MONITOR DE ESTADO
-onAuthStateChanged(auth, (user) => {
-    const isRedirecting = sessionStorage.getItem('auth_in_progress');
-
-    if (user) {
-        // alert("6. Auth State: LOGADO! Email: " + user.email);
-        appState.user = user;
-        document.getElementById('login-screen').style.display = 'none';
-        document.getElementById('app-screen').style.display = 'block';
-        startRealtimeListener(user.uid, () => {
-            initViewSelector();
-            filterAndRender();
-            hideLoading();
-        });
-    } else {
-        if (isRedirecting) {
-            // Se cair aqui, é o "LIMBO". O site recarregou, mas o usuário ainda é null.
-            console.log("Aguardando...");
-        } else {
-            // alert("7. Auth State: DESLOGADO.");
-            appState.user = null;
-            document.getElementById('login-screen').style.display = 'flex';
-            document.getElementById('app-screen').style.display = 'none';
-            hideLoading();
-        }
-    }
-});
-
-// --- CONTROLE DE UI (LOADING) ---
+// --- CONTROLE DE UI ---
 function showLoading() {
     const overlay = document.getElementById('loading-overlay');
     if(overlay) overlay.style.display = 'flex';
@@ -115,12 +18,11 @@ function hideLoading() {
     if(overlay) overlay.style.display = 'none';
 }
 
-// --- APRENDIZADO ATIVO ---
+// --- APRENDIZADO ---
 function learnRule(description, category) {
     if (!description || !category || category === "Outros") return;
     const keyword = extractKeyword(description);
     if (keyword.length < 3) return;
-
     if (!appState.categoryRules[category]) {
         appState.categoryRules[category] = [];
         if(!appState.categories.includes(category)) appState.categories.push(category);
@@ -132,20 +34,24 @@ function learnRule(description, category) {
 
 // --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Começa com loading
-    showLoading();
+    // Verifica se estamos voltando de um login para manter o loading
+    const pendingLogin = localStorage.getItem('auth_pending');
+    if (pendingLogin) {
+        showLoading();
+    } else {
+        hideLoading();
+    }
 
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
-    
     if(document.getElementById('import-ref-month')) document.getElementById('import-ref-month').value = `${yyyy}-${mm}`;
     
     const todayISO = today.toISOString().split('T')[0];
     if(document.getElementById('manual-date')) document.getElementById('manual-date').value = todayISO;
     if(document.getElementById('manual-invoice-date')) document.getElementById('manual-invoice-date').value = todayISO;
 
-    // BOTÃO DE LOGIN
+    // --- LÓGICA DE LOGIN ---
     const btnLogin = document.getElementById('btn-login');
     if (btnLogin) {
         btnLogin.addEventListener('click', () => {
@@ -153,47 +59,62 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             
+            // Tenta detectar navegador do WhatsApp/Instagram
+            const isInApp = /FBAV|FBAN|Instagram|WhatsApp/i.test(navigator.userAgent);
+
             if (isMobile) {
-                // AVISA O SISTEMA QUE ESTAMOS INDO PRO GOOGLE
-                sessionStorage.setItem('auth_in_progress', 'true');
-                showLoading(); 
+                if (isInApp) {
+                    alert("⚠️ Aviso: Navegadores do WhatsApp/Instagram costumam bloquear o login.\n\nSe falhar, clique nos 3 pontinhos e escolha 'Abrir no Navegador' (Chrome/Safari).");
+                }
+
+                // Marca que iniciamos um login
+                localStorage.setItem('auth_pending', 'true');
+                showLoading();
                 
                 signInWithRedirect(auth, provider).catch(error => {
-                    sessionStorage.removeItem('auth_in_progress');
+                    localStorage.removeItem('auth_pending');
                     hideLoading();
-                    alert("Erro no Login: " + error.message);
+                    alert("Erro ao redirecionar: " + error.message);
                 });
             } else {
                 signInWithPopup(auth, provider).catch(err => {
-                    // Fallback para desktop também
-                    sessionStorage.setItem('auth_in_progress', 'true');
+                    console.warn("Popup falhou, tentando redirect...", err);
+                    localStorage.setItem('auth_pending', 'true');
                     signInWithRedirect(auth, provider);
                 });
             }
         });
     }
 
-    // PROCESSA O RETORNO (MOBILE)
+    // --- PROCESSAMENTO DO RETORNO ---
     getRedirectResult(auth)
         .then((result) => {
-            // Se voltou com sucesso, limpamos a flag
             if (result) {
-                sessionStorage.removeItem('auth_in_progress');
-                console.log("Login concluído.");
+                console.log("Login concluído com sucesso.");
+                localStorage.removeItem('auth_pending');
+                // onAuthStateChanged cuidará da tela
+            } else {
+                // SE NADA VOLTOU, MAS TÍNHAMOS UM LOGIN PENDENTE
+                if (localStorage.getItem('auth_pending')) {
+                    console.warn("Login perdido pelo navegador.");
+                    // Removemos a trava para não ficar em loop eterno
+                    localStorage.removeItem('auth_pending');
+                    hideLoading();
+                    alert("O navegador perdeu os dados do login.\n\nPor favor, abra este site no Chrome ou Safari nativo.");
+                }
             }
         })
         .catch((error) => {
-            sessionStorage.removeItem('auth_in_progress');
+            localStorage.removeItem('auth_pending');
             hideLoading();
-            // Erro comum: Domínio não autorizado
             if (error.code === 'auth/unauthorized-domain') {
-                alert("Erro: Domínio não autorizado no Firebase Console.");
+                alert("Erro: Domínio não autorizado no Firebase.\nAdicione 'brunolrs.github.io' no Console.");
             } else {
-                alert("Falha no login: " + error.message);
+                alert("Erro no Login: " + error.message);
             }
         });
 
-    // ... (RESTANTE DOS LISTENERS IGUAL AO ANTERIOR) ...
+    // ... Restante dos Listeners (Mantidos iguais) ...
     const checkInstallment = document.getElementById('is-installment');
     if(checkInstallment) {
         checkInstallment.addEventListener('change', (e) => {
@@ -235,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-logout').addEventListener('click', () => {
         showLoading();
         signOut(auth).then(() => {
-            sessionStorage.removeItem('auth_in_progress');
+            localStorage.removeItem('auth_pending');
             hideLoading();
         });
     });
@@ -246,7 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if(btnReset) {
         btnReset.addEventListener('click', async () => {
             if(confirm("PERIGO: Apagar TUDO?\nDeseja continuar?")) {
-                if (prompt("Digite DELETAR:") === "DELETAR") {
+                const conf = prompt("Digite DELETAR:");
+                if (conf === "DELETAR") {
                     vibrate(200);
                     showLoading();
                     appState.transactions = [];
@@ -298,14 +220,14 @@ function setupModal(modalId, openBtnId, closeBtnId, openCallback) {
     }
 }
 
-// 4. MONITOR DE AUTENTICAÇÃO (O "JUÍZ" DA TELA)
+// 4. MONITOR DE AUTENTICAÇÃO
 onAuthStateChanged(auth, (user) => {
-    // Verifica se estamos voltando de um redirecionamento
-    const isRedirecting = sessionStorage.getItem('auth_in_progress');
+    // Verifica flag
+    const isPending = localStorage.getItem('auth_pending');
 
     if (user) {
-        // Logado com sucesso
-        sessionStorage.removeItem('auth_in_progress'); // Limpa a flag
+        // SUCESSO: Limpa flag e entra
+        localStorage.removeItem('auth_pending');
         appState.user = user;
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app-screen').style.display = 'block';
@@ -313,15 +235,16 @@ onAuthStateChanged(auth, (user) => {
         startRealtimeListener(user.uid, () => {
             initViewSelector();
             filterAndRender();
-            hideLoading(); 
+            hideLoading();
         });
     } else {
-        // Deslogado... MAS, se estiver voltando do Google, NÃO mostre o login ainda
-        if (isRedirecting) {
-            console.log("Aguardando processamento do redirect...");
-            showLoading(); // Mantém o loading
-            // O getRedirectResult vai resolver isso em breve
+        // FALHA OU DESLOGADO
+        if (isPending) {
+            // Se tem pendência mas não tem user, esperamos o getRedirectResult resolver
+            // Se getRedirectResult falhar (cair no else lá em cima), ele limpa a flag e tira o loading
+            console.log("Aguardando verificação do redirect...");
         } else {
+            // Estado normal deslogado
             appState.user = null;
             document.getElementById('login-screen').style.display = 'flex';
             document.getElementById('app-screen').style.display = 'none';
@@ -330,7 +253,7 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// GLOBALS (MANTIDOS IGUAIS)
+// GLOBALS
 window.toggleSection = (sectionId, iconId) => {
     vibrate(20);
     const section = document.getElementById(sectionId);
