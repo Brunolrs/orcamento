@@ -1,6 +1,6 @@
 /**
  * MAIN - PONTO DE ENTRADA E CONTROLE
- * Correção: Tela de Loading para evitar loop no login mobile
+ * Versão Final: Login Mobile Estável (Com memória de sessão para evitar loop)
  */
 import { auth, provider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase, resetAllData } from './firebase.js';
 import { appState } from './state.js';
@@ -36,7 +36,7 @@ function learnRule(description, category) {
 
 // --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. GARANTE QUE O LOADING COMECE VISÍVEL
+    // Começa com loading
     showLoading();
 
     const today = new Date();
@@ -49,47 +49,55 @@ document.addEventListener('DOMContentLoaded', () => {
     if(document.getElementById('manual-date')) document.getElementById('manual-date').value = todayISO;
     if(document.getElementById('manual-invoice-date')) document.getElementById('manual-invoice-date').value = todayISO;
 
-    // 2. BOTÃO DE LOGIN COM TRATAMENTO DE ERRO
+    // BOTÃO DE LOGIN
     const btnLogin = document.getElementById('btn-login');
     if (btnLogin) {
         btnLogin.addEventListener('click', () => {
             vibrate();
-            showLoading(); // Bloqueia a tela ao clicar
             
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             
             if (isMobile) {
-                // Mobile: Redireciona
+                // AVISA O SISTEMA QUE ESTAMOS INDO PRO GOOGLE
+                sessionStorage.setItem('auth_in_progress', 'true');
+                showLoading(); 
+                
                 signInWithRedirect(auth, provider).catch(error => {
+                    sessionStorage.removeItem('auth_in_progress');
                     hideLoading();
-                    alert("Erro no Login Mobile: " + error.message);
+                    alert("Erro no Login: " + error.message);
                 });
             } else {
-                // Desktop: Popup
                 signInWithPopup(auth, provider).catch(err => {
-                    console.warn("Popup falhou, tentando redirect...", err);
+                    // Fallback para desktop também
+                    sessionStorage.setItem('auth_in_progress', 'true');
                     signInWithRedirect(auth, provider);
-                }).finally(() => {
-                    // Nota: No popup, o finally roda quando fecha a janela. 
-                    // No redirect, a página recarrega, então o finally não roda aqui.
                 });
             }
         });
     }
 
-    // 3. PROCESSA RETORNO DO REDIRECT (MOBILE)
+    // PROCESSA O RETORNO (MOBILE)
     getRedirectResult(auth)
         .then((result) => {
-            if (result) console.log("Retorno do Google processado com sucesso.");
+            // Se voltou com sucesso, limpamos a flag
+            if (result) {
+                sessionStorage.removeItem('auth_in_progress');
+                console.log("Login concluído.");
+            }
         })
         .catch((error) => {
+            sessionStorage.removeItem('auth_in_progress');
             hideLoading();
-            console.error("Erro no retorno do login:", error);
-            // ALERTA DE DEBUG: Isso vai te dizer se o domínio está bloqueado
-            alert("Falha ao processar login: " + error.message);
+            // Erro comum: Domínio não autorizado
+            if (error.code === 'auth/unauthorized-domain') {
+                alert("Erro: Domínio não autorizado no Firebase Console.");
+            } else {
+                alert("Falha no login: " + error.message);
+            }
         });
 
-    // --- OUTROS LISTENERS ---
+    // ... (RESTANTE DOS LISTENERS IGUAL AO ANTERIOR) ...
     const checkInstallment = document.getElementById('is-installment');
     if(checkInstallment) {
         checkInstallment.addEventListener('change', (e) => {
@@ -131,7 +139,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-logout').addEventListener('click', () => {
         showLoading();
         signOut(auth).then(() => {
-            // O onAuthStateChanged vai lidar com a UI
+            sessionStorage.removeItem('auth_in_progress');
+            hideLoading();
         });
     });
     
@@ -140,9 +149,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnReset = document.getElementById('btn-reset-all');
     if(btnReset) {
         btnReset.addEventListener('click', async () => {
-            if(confirm("PERIGO: Isso apagará TODOS os dados.\nDeseja continuar?")) {
-                const conf = prompt("Digite DELETAR:");
-                if (conf === "DELETAR") {
+            if(confirm("PERIGO: Apagar TUDO?\nDeseja continuar?")) {
+                if (prompt("Digite DELETAR:") === "DELETAR") {
                     vibrate(200);
                     showLoading();
                     appState.transactions = [];
@@ -196,10 +204,12 @@ function setupModal(modalId, openBtnId, closeBtnId, openCallback) {
 
 // 4. MONITOR DE AUTENTICAÇÃO (O "JUÍZ" DA TELA)
 onAuthStateChanged(auth, (user) => {
-    // Esconde o loading SOMENTE quando temos certeza se está logado ou não
-    
+    // Verifica se estamos voltando de um redirecionamento
+    const isRedirecting = sessionStorage.getItem('auth_in_progress');
+
     if (user) {
         // Logado com sucesso
+        sessionStorage.removeItem('auth_in_progress'); // Limpa a flag
         appState.user = user;
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app-screen').style.display = 'block';
@@ -207,18 +217,24 @@ onAuthStateChanged(auth, (user) => {
         startRealtimeListener(user.uid, () => {
             initViewSelector();
             filterAndRender();
-            hideLoading(); // Só libera a tela quando os dados chegarem
+            hideLoading(); 
         });
     } else {
-        // Deslogado
-        appState.user = null;
-        document.getElementById('login-screen').style.display = 'flex';
-        document.getElementById('app-screen').style.display = 'none';
-        hideLoading(); // Libera a tela para o usuário tentar logar
+        // Deslogado... MAS, se estiver voltando do Google, NÃO mostre o login ainda
+        if (isRedirecting) {
+            console.log("Aguardando processamento do redirect...");
+            showLoading(); // Mantém o loading
+            // O getRedirectResult vai resolver isso em breve
+        } else {
+            appState.user = null;
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('app-screen').style.display = 'none';
+            hideLoading();
+        }
     }
 });
 
-// GLOBALS
+// GLOBALS (MANTIDOS IGUAIS)
 window.toggleSection = (sectionId, iconId) => {
     vibrate(20);
     const section = document.getElementById(sectionId);
@@ -241,26 +257,20 @@ window.toggleEditMode = () => {
 window.updateTx = (id, field, value) => {
     const tx = appState.transactions.find(t => t.id === id);
     if (!tx) return;
-    
     if (field === 'amount') {
         const val = parseFloat(value);
         if (isNaN(val)) return;
         tx.amount = tx.amount < 0 ? -Math.abs(val) : Math.abs(val);
-    } 
-    else if (field === 'date') {
+    } else if (field === 'date') {
         const [y, m, d] = value.split('-'); tx.date = `${d}.${m}.${y}`;
-    } 
-    else if (field === 'invoiceDate') {
+    } else if (field === 'invoiceDate') {
         const [y, m, d] = value.split('-'); tx.invoiceDate = `${d}.${m}.${y}`; tx.billMonth = `${y}-${m}`;
-    } 
-    else if (field === 'category') {
+    } else if (field === 'category') {
         if (tx.category !== value) learnRule(tx.description, value);
         tx.category = value;
-    } 
-    else {
+    } else {
         tx[field] = value;
     }
-    
     saveToFirebase();
     if(field === 'invoiceDate') filterAndRender(); 
 };
@@ -351,16 +361,13 @@ async function handleFileUpload(file) {
     try {
         const textContent = await file.text();
         const etl = new InvoiceETL();
-        
         etl.extract(textContent);
         const newRulesDelta = etl.learn(appState.categoryRules);
-        
         const defaultCats = Object.keys(DEFAULT_RULES);
         const learnedCats = Object.keys(newRulesDelta);
         const allCategories = [...new Set([...appState.categories, ...defaultCats, ...learnedCats])];
 
         await etl.transform(targetMonth, appState.categoryRules, allCategories);
-        
         const previewData = etl.getPreviewData();
         
         document.body.style.cursor = 'default';
@@ -368,7 +375,6 @@ async function handleFileUpload(file) {
 
         renderEtlPreview(previewData, async () => {
             let addedCount = 0;
-
             etl.transformedData.forEach(tx => {
                 const cat = tx.category;
                 if (!appState.categoryRules[cat]) {
@@ -395,9 +401,7 @@ async function handleFileUpload(file) {
 
             const currentItems = etl.transformedData.filter(t => t.billMonth === targetMonth);
             const futureItems = etl.transformedData.filter(t => t.billMonth > targetMonth);
-
             const finalTransactions = [...keptTransactions, ...currentItems];
-
             const normalize = (s) => s.toUpperCase().replace(/PARC(?:ELA)?/g, "").replace(/[^A-Z0-9]/g, "");
             
             futureItems.forEach(newTx => {
@@ -421,7 +425,6 @@ async function handleFileUpload(file) {
             const { initViewSelector, filterAndRender } = await import('./ui.js');
             initViewSelector(); 
             filterAndRender();
-            
             document.getElementById('import-modal').style.display = 'none';
             unlockBodyScroll();
         });
@@ -450,26 +453,22 @@ function deleteCurrentMonth() {
 function saveManualTransaction() {
     const modal = document.getElementById('manual-modal');
     const editId = modal.dataset.editId;
-    
     const desc = document.getElementById('manual-desc').value.trim();
     const valStr = document.getElementById('manual-val').value;
     const dateBuyStr = document.getElementById('manual-date').value;
     const dateInvStr = document.getElementById('manual-invoice-date').value;
     const cat = document.getElementById('manual-cat').value;
     const type = document.querySelector('input[name="tx-type"]:checked').value;
-    
     const isInstallment = document.getElementById('is-installment') ? document.getElementById('is-installment').checked : false;
     const totalInstallments = parseInt(document.getElementById('installments-count').value) || 2;
 
     if(!desc || !valStr || !dateBuyStr || !dateInvStr) { alert("Preencha todos os campos!"); return; }
-    
     let amount = parseFloat(valStr.replace(/\./g, '').replace(',', '.'));
     if (isNaN(amount)) { alert("Valor inválido"); return; }
     if (type === 'credit') amount = -Math.abs(amount); else amount = Math.abs(amount);
     
     const [yB, mB, dB] = dateBuyStr.split('-').map(Number);
     const formattedDateBuy = `${String(dB).padStart(2,'0')}.${String(mB).padStart(2,'0')}.${yB}`;
-    
     const [yI, mI, dI] = dateInvStr.split('-').map(Number);
 
     if(editId) {
@@ -478,50 +477,27 @@ function saveManualTransaction() {
             const formattedDateInv = `${String(dI).padStart(2,'0')}.${String(mI).padStart(2,'0')}.${yI}`;
             const billMonth = `${yI}-${String(mI).padStart(2,'0')}`;
             if (appState.transactions[index].category !== cat) learnRule(desc, cat);
-            appState.transactions[index] = { 
-                ...appState.transactions[index], 
-                date: formattedDateBuy, 
-                invoiceDate: formattedDateInv, 
-                billMonth: billMonth, 
-                description: desc, 
-                amount: amount, 
-                category: cat 
-            };
+            appState.transactions[index] = { ...appState.transactions[index], date: formattedDateBuy, invoiceDate: formattedDateInv, billMonth: billMonth, description: desc, amount: amount, category: cat };
         }
     } else {
         learnRule(desc, cat);
         const loops = isInstallment ? totalInstallments : 1;
         for (let i = 0; i < loops; i++) {
             let currentInvDate = new Date(yI, mI - 1 + i, dI);
-            
             const curY = currentInvDate.getFullYear();
             const curM = String(currentInvDate.getMonth() + 1).padStart(2, '0');
             const curD = String(currentInvDate.getDate()).padStart(2, '0');
-            
             const formattedDateInv = `${curD}.${curM}.${curY}`;
             const billMonth = `${curY}-${curM}`;
-
             let finalDesc = desc;
             if (isInstallment) finalDesc = `${desc} (${i + 1}/${totalInstallments})`;
-
-            appState.transactions.push({ 
-                id: "MAN_" + Date.now() + "_" + i, 
-                date: formattedDateBuy, 
-                invoiceDate: formattedDateInv, 
-                billMonth: billMonth, 
-                description: finalDesc, 
-                amount: amount, 
-                category: cat, 
-                isBillPayment: false 
-            });
+            appState.transactions.push({ id: "MAN_" + Date.now() + "_" + i, date: formattedDateBuy, invoiceDate: formattedDateInv, billMonth: billMonth, description: finalDesc, amount: amount, category: cat, isBillPayment: false });
         }
         if (isInstallment) alert(`${loops} parcelas geradas.`);
     }
-
     saveToFirebase();
     modal.style.display = 'none';
     unlockBodyScroll();
-    
     if(appState.currentViewMonth !== "ALL" && !editId) initViewSelector();
     filterAndRender();
 }
@@ -531,16 +507,13 @@ function openManualModal(txToEdit = null) {
     const select = document.getElementById('manual-cat');
     const btnDelete = document.getElementById('btn-delete-manual');
     const valInput = document.getElementById('manual-val');
-    
     select.innerHTML = '';
     appState.categories.sort().forEach(cat => { const opt = document.createElement('option'); opt.value = cat; opt.text = cat; select.add(opt); });
-    
     valInput.oninput = (e) => {
         let value = e.target.value.replace(/\D/g, "");
         if (value === "") { e.target.value = ""; return; }
         e.target.value = (parseInt(value) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
-
     const checkInstallment = document.getElementById('is-installment');
     const divOptions = document.getElementById('installment-options');
     const inputCount = document.getElementById('installments-count');
@@ -550,13 +523,11 @@ function openManualModal(txToEdit = null) {
         divOptions.style.display = 'none';
         inputCount.value = 2;
     }
-
     if(btnDelete) {
         const newBtn = btnDelete.cloneNode(true);
         btnDelete.parentNode.replaceChild(newBtn, btnDelete);
         newBtn.addEventListener('click', () => { if(modal.dataset.editId) window.deleteTransaction(modal.dataset.editId); });
     }
-
     if(txToEdit) {
         document.getElementById('manual-modal-title').innerText = "Editar";
         modal.dataset.editId = txToEdit.id;
