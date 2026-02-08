@@ -1,8 +1,8 @@
 /**
  * MAIN - PONTO DE ENTRADA E CONTROLE
- * Versão: Correção "Missing Initial State" (Uso Exclusivo de Popup)
+ * Versão: Login Popup + Sistema de Backup e Restauração
  */
-import { auth, provider, signInWithPopup, getRedirectResult, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase, resetAllData } from './firebase.js';
+import { auth, provider, signInWithPopup, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase, resetAllData, restoreFromBackup } from './firebase.js';
 import { appState } from './state.js';
 import { initViewSelector, filterAndRender, renderIncomeList, renderCategoryManager, renderEtlPreview } from './ui.js';
 import { lockBodyScroll, unlockBodyScroll, vibrate, extractKeyword } from './utils.js';
@@ -36,7 +36,7 @@ function learnRule(description, category) {
 
 // --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Inicia com loading para verificar estado
+    // Começa com loading
     showLoading();
 
     const today = new Date();
@@ -49,37 +49,84 @@ document.addEventListener('DOMContentLoaded', () => {
     if(document.getElementById('manual-date')) document.getElementById('manual-date').value = todayISO;
     if(document.getElementById('manual-invoice-date')) document.getElementById('manual-invoice-date').value = todayISO;
 
-    // --- LÓGICA DE LOGIN (MODIFICADA PARA POPUP) ---
+    // --- LÓGICA DE LOGIN (POPUP) ---
     const btnLogin = document.getElementById('btn-login');
     if (btnLogin) {
         btnLogin.addEventListener('click', () => {
             vibrate();
-            
-            // Removemos o 'showLoading()' aqui para não cobrir o popup se ele demorar
-            // O Popup abre uma nova janela/aba sobre o site
-            
+            // O Popup funciona melhor em Mobile/WebViews que o Redirect
             signInWithPopup(auth, provider)
                 .then((result) => {
-                    console.log("Login via Popup realizado com sucesso!");
-                    // onAuthStateChanged cuidará da transição de tela
+                    console.log("Login realizado!");
+                    // O onAuthStateChanged vai lidar com a tela
                 })
                 .catch((error) => {
-                    console.error("Erro no Popup:", error);
-                    
+                    console.error("Erro no login:", error);
                     if (error.code === 'auth/popup-blocked') {
-                        alert("⚠️ O navegador bloqueou a janela de login.\n\nPor favor, permita Popups para este site ou clique novamente.");
+                        alert("⚠️ Popup bloqueado. Por favor, permita popups para logar.");
                     } else if (error.code === 'auth/popup-closed-by-user') {
-                        // Usuário fechou, não faz nada
-                    } else if (error.code === 'auth/cancelled-popup-request') {
-                        // Conflito de popups, ignora
+                        // Usuário fechou, ok.
                     } else {
-                        alert("Erro no Login: " + error.message);
+                        alert("Erro ao entrar: " + error.message);
                     }
                 });
         });
     }
 
-    // --- OUTROS LISTENERS (Mantidos) ---
+    // --- SISTEMA DE BACKUP ---
+    
+    // 1. Exportar (Baixar)
+    const btnExport = document.getElementById('btn-export-backup');
+    if (btnExport) {
+        btnExport.addEventListener('click', () => {
+            vibrate();
+            const backupObj = {
+                savedAt: new Date().toISOString(),
+                transactions: appState.transactions,
+                incomeDetails: appState.incomeDetails,
+                monthlyBudgets: appState.monthlyBudgets,
+                categoryRules: appState.categoryRules,
+                categoryColors: appState.categoryColors
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupObj));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            const fileName = `Backup_Financas_${new Date().toISOString().split('T')[0]}.json`;
+            downloadAnchor.setAttribute("download", fileName);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        });
+    }
+
+    // 2. Importar (Restaurar)
+    const inputRestore = document.getElementById('restore-input');
+    if (inputRestore) {
+        inputRestore.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (confirm("ATENÇÃO: Isso irá SUBSTITUIR todos os dados atuais pelos dados do arquivo.\n\nDeseja continuar?")) {
+                showLoading();
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        const json = JSON.parse(event.target.result);
+                        await restoreFromBackup(json);
+                        hideLoading();
+                    } catch (err) {
+                        hideLoading();
+                        alert("Erro ao ler arquivo: " + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            }
+            e.target.value = ''; // Limpa para permitir reuso
+        });
+    }
+
+    // --- OUTROS LISTENERS ---
     const checkInstallment = document.getElementById('is-installment');
     if(checkInstallment) {
         checkInstallment.addEventListener('change', (e) => {
@@ -128,17 +175,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnReset = document.getElementById('btn-reset-all');
     if(btnReset) {
         btnReset.addEventListener('click', async () => {
-            if(confirm("PERIGO: Isso apagará TODOS os dados.\nDeseja continuar?")) {
-                const conf = prompt("Digite DELETAR:");
-                if (conf === "DELETAR") {
+            if(confirm("PERIGO: Apagar TUDO?\nDeseja continuar?")) {
+                if (prompt("Digite DELETAR:") === "DELETAR") {
                     vibrate(200);
                     showLoading();
+                    await resetAllData();
                     appState.transactions = [];
                     appState.incomeDetails = {};
                     appState.monthlyBudgets = {};
                     appState.categoryRules = { "Outros": [] };
-                    appState.categories = ["Outros"];
-                    await resetAllData();
                     hideLoading();
                     alert("Sistema zerado.");
                     window.location.reload();
@@ -331,7 +376,6 @@ async function handleFileUpload(file) {
     try {
         const textContent = await file.text();
         const etl = new InvoiceETL();
-        
         etl.extract(textContent);
         const newRulesDelta = etl.learn(appState.categoryRules);
         const defaultCats = Object.keys(DEFAULT_RULES);
