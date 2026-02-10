@@ -10,33 +10,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <link rel="stylesheet" href="styles.css">
-    <style>
-        .radio-box {
-            flex: 1;
-            background: #F9F9F9;
-            border: 1px solid #E5E5EA;
-            padding: 10px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-        }
-        .radio-box input { margin: 0; }
-        
-        /* Classe para borrar valores (Privacidade) */
-        .blur-values .value, 
-        .blur-values .tx-val, 
-        .blur-values #monthly-income,
-        .blur-values .budget-display,
-        .blur-values #total-credit-display,
-        .blur-values #total-debit-display {
-            filter: blur(20px);
-            user-select: none;
-        }
-    </style>
     
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
 </head>
@@ -58,10 +31,16 @@
         <div class="header-container">
             <div class="top-bar">
                 <div class="app-brand">Minhas Finanças</div>
+                
                 <div class="settings-container">
+                    <button id="btn-theme" class="btn-icon-header" title="Alternar Tema" style="margin-right: 5px;">
+                        <i class="fa-solid fa-moon"></i>
+                    </button>
+
                     <button id="btn-privacy" class="btn-icon-header" title="Ocultar Valores" style="margin-right: 5px;">
                         <i class="fa-solid fa-eye"></i>
                     </button>
+                    
                     <button id="btn-toggle-menu" class="btn-icon-header"><i class="fa-solid fa-gear"></i></button>
                     
                     <div id="main-dropdown" class="dropdown-menu">
@@ -140,12 +119,12 @@
                     </div>
                 </div>
                 
-            <div class="chart-box">
-                <div style="font-size:12px; font-weight:700; color:#8E8E93; margin-bottom:10px; text-align:center;">EVOLUÇÃO (ANO)</div>
-                <div style="position: relative; height: 220px;">
-                    <canvas id="trendChart"></canvas>
+                <div class="chart-box">
+                    <div style="font-size:12px; font-weight:700; color:#8E8E93; margin-bottom:10px; text-align:center;">EVOLUÇÃO (TENDÊNCIA)</div>
+                    <div style="position: relative; height: 220px;">
+                        <canvas id="trendChart"></canvas>
+                    </div>
                 </div>
-            </div>
             </div>
         </div>
 

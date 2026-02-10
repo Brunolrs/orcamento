@@ -2,7 +2,7 @@
    VARIÁVEIS GLOBAIS E RESET
    ========================================================================== */
 :root {
-    /* Paleta iOS */
+    /* Paleta iOS (Light Mode Padrão) */
     --ios-bg: #F2F2F7;
     --ios-card: #FFFFFF;
     --ios-text: #000000;
@@ -11,6 +11,10 @@
     --ios-green: #34C759;
     --ios-red: #FF3B30;
     
+    /* Variáveis de Componentes */
+    --input-bg: #F9F9F9;
+    --border-color: #E5E5EA;
+
     /* Tipografia e Layout */
     --ios-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --radius-l: 24px;
@@ -33,17 +37,18 @@ body {
     color: var(--ios-text);
     min-height: 100vh;
     padding-bottom: calc(120px + env(safe-area-inset-bottom)); /* Espaço para FAB e barra do iPhone */
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* ==========================================================================
-   TELA DE LOGIN (CORRIGIDA PARA MOBILE)
+   TELA DE LOGIN
    ========================================================================== */
 #login-screen {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 100dvh; /* Usa dynamic viewport height para evitar bugs no Safari Mobile */
+    min-height: 100dvh;
     background-color: var(--ios-bg);
     padding: 20px;
     text-align: center;
@@ -53,7 +58,7 @@ body {
 #btn-login {
     background: var(--ios-blue);
     color: white;
-    padding: 16px 32px; /* Área de toque generosa */
+    padding: 16px 32px;
     border-radius: 12px;
     border: none;
     font-size: 18px;
@@ -85,6 +90,7 @@ body {
     box-shadow: var(--shadow-soft);
     margin-bottom: 25px;
     position: relative;
+    transition: background-color 0.3s ease;
 }
 
 .top-bar {
@@ -104,10 +110,12 @@ body {
 /* Menu Dropdown e Configurações */
 .settings-container {
     position: relative;
+    display: flex;
+    align-items: center;
 }
 
 .btn-icon-header {
-    background: #F2F2F7;
+    background: var(--ios-bg);
     border: none;
     width: 40px;
     height: 40px;
@@ -122,14 +130,14 @@ body {
 }
 
 .btn-icon-header:hover {
-    background: #E5E5EA;
+    background: var(--border-color);
 }
 
 .dropdown-menu {
     position: absolute;
     top: 50px;
     right: 0;
-    background: white;
+    background: var(--ios-card);
     width: 220px;
     border-radius: var(--radius-m);
     box-shadow: 0 10px 40px rgba(0,0,0,0.15);
@@ -149,7 +157,7 @@ body {
     width: 100%;
     padding: 15px 20px;
     border: none;
-    background: white;
+    background: transparent;
     text-align: left;
     font-size: 14px;
     font-weight: 500;
@@ -158,15 +166,15 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
+    border-bottom: 1px solid var(--border-color);
 }
 
-.dropdown-item:active {
-    background: #F2F2F7;
-}
+.dropdown-item:last-child { border-bottom: none; }
+.dropdown-item:active { background: var(--ios-bg); }
 
 .dropdown-divider {
     height: 1px;
-    background: #F0F0F0;
+    background: var(--border-color);
     margin: 0;
 }
 
@@ -174,8 +182,8 @@ body {
 .text-red { color: var(--ios-red); }
 
 .view-selector {
-    background: #F2F2F7;
-    border: none;
+    background: var(--ios-bg);
+    border: 1px solid transparent;
     padding: 8px 12px;
     border-radius: 12px;
     font-weight: 600;
@@ -187,7 +195,7 @@ body {
 }
 
 /* ==========================================================================
-   SEÇÃO DE RENDA (INPUT GRANDE)
+   SEÇÃO DE RENDA
    ========================================================================== */
 .income-container {
     text-align: center;
@@ -223,7 +231,7 @@ body {
 }
 
 .btn-icon-action {
-    background: #E5E5EA;
+    background: var(--border-color);
     border: none;
     width: 32px;
     height: 32px;
@@ -239,7 +247,7 @@ body {
    ORÇAMENTO E DASHBOARD
    ========================================================================== */
 .budget-wrapper {
-    background: white;
+    background: var(--ios-card);
     margin: 0 20px 20px 20px;
     padding: 15px;
     border-radius: 16px;
@@ -247,6 +255,7 @@ body {
     justify-content: space-between;
     align-items: center;
     box-shadow: var(--shadow-soft);
+    transition: background-color 0.3s ease;
 }
 
 .budget-box {
@@ -289,7 +298,7 @@ body {
 .budget-divider {
     width: 1px;
     height: 40px;
-    background-color: #E5E5EA;
+    background-color: var(--border-color);
     margin: 0 15px;
 }
 
@@ -315,6 +324,7 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    transition: background-color 0.3s ease;
 }
 
 .card-label {
@@ -328,18 +338,20 @@ body {
     font-size: 18px;
     font-weight: 700;
     margin-top: 5px;
+    color: var(--ios-text);
 }
 
 .highlight-card {
-    background: var(--ios-text);
+    background: #1C1C1E; /* Default escuro elegante para o card de destaque */
     color: white;
     margin: 0 20px 20px 20px;
     padding: 25px;
     border-radius: 24px;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
     display: flex;
+    flex-direction: column;
     justify-content: space-between;
-    align-items: center;
+    gap: 15px;
 }
 
 .highlight-card .label {
@@ -348,17 +360,19 @@ body {
     text-transform: uppercase;
     font-weight: 600;
     margin-bottom: 5px;
+    color: #EBEBF5;
 }
 
 .highlight-card .value {
     font-size: 26px;
     font-weight: 800;
+    color: #FFFFFF;
 }
 
 .val-refund { color: var(--ios-green); }
 
 /* ==========================================================================
-   COMPONENTES EXPANSÍVEIS
+   COMPONENTES DE EXPANSÃO
    ========================================================================== */
 .collapsible-header {
     display: flex;
@@ -380,10 +394,13 @@ body {
 
 .section-header-wrapper {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     justify-content: space-between;
     padding-right: 20px;
     margin-bottom: 5px;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
 }
 
 .btn-toggle-edit {
@@ -403,18 +420,33 @@ body {
 }
 
 /* ==========================================================================
-   GRÁFICOS E RESUMO DE CATEGORIAS
+   GRÁFICOS
    ========================================================================== */
-.chart-box {
-    background: var(--ios-card);
-    margin: 0 20px 20px 20px;
-    padding: 20px;
-    border-radius: 20px;
-    height: 280px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
-    position: relative;
+#chart-wrapper {
+    margin-bottom: 20px;
 }
 
+.charts-row {
+    display: flex;
+    gap: 15px;
+    padding: 0 20px 20px 20px;
+    overflow-x: auto;
+}
+
+.chart-box {
+    background: var(--ios-card);
+    padding: 15px;
+    border-radius: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+    flex: 1;
+    min-width: 280px;
+    position: relative;
+    transition: background-color 0.3s ease;
+}
+
+/* ==========================================================================
+   RESUMO DE CATEGORIAS
+   ========================================================================== */
 .cat-summary-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -424,13 +456,14 @@ body {
 }
 
 .cat-summary-card {
-    background: white;
+    background: var(--ios-card);
     padding: 15px;
     border-radius: 16px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
     display: flex;
     flex-direction: column;
     gap: 5px;
+    transition: background-color 0.3s ease;
 }
 
 .cat-sum-header {
@@ -451,7 +484,7 @@ body {
 .cat-progress-bg {
     width: 100%;
     height: 6px;
-    background: #F2F2F7;
+    background: var(--ios-bg);
     border-radius: 3px;
     margin-top: 5px;
     overflow: hidden;
@@ -488,17 +521,18 @@ body {
     border-radius: 18px;
     overflow: hidden;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+    transition: background-color 0.3s ease;
 }
 
 .tx-item {
     padding: 12px 16px;
-    border-bottom: 1px solid #F7F7F7;
+    border-bottom: 1px solid var(--border-color);
     cursor: pointer;
     transition: background-color 0.1s;
 }
 
 .tx-item:last-child { border-bottom: none; }
-.tx-item:active { background-color: #F2F2F7; }
+.tx-item:active { background-color: var(--ios-bg); }
 
 .tx-row-main {
     display: flex;
@@ -563,18 +597,18 @@ body {
 
 .edit-input, .edit-select {
     width: 100%;
-    border: 1px solid #E5E5EA;
-    background: #fff;
+    border: 1px solid var(--border-color);
+    background: var(--input-bg);
     padding: 0 10px;
     border-radius: 12px;
     font-size: 16px !important;
     height: 44px;
     margin-bottom: 4px;
     font-family: var(--ios-font);
+    color: var(--ios-text);
 }
 
 .edit-select {
-    background: #F2F2F7;
     color: var(--ios-blue);
     font-weight: 600;
     font-size: 14px !important;
@@ -644,7 +678,7 @@ body {
 .fab-add:active { transform: scale(0.95); }
 
 /* ==========================================================================
-   MODAIS
+   MODAIS E FORMULÁRIOS
    ========================================================================== */
 .modal-overlay {
     position: fixed;
@@ -661,7 +695,7 @@ body {
 }
 
 .modal-content {
-    background: white;
+    background: var(--ios-card);
     width: 90%;
     max-width: 500px;
     max-height: 85vh;
@@ -671,6 +705,7 @@ body {
     flex-direction: column;
     overflow: hidden;
     animation: slideUp 0.3s ease;
+    border: 1px solid var(--border-color);
 }
 
 @keyframes slideUp {
@@ -680,13 +715,13 @@ body {
 
 .modal-header {
     padding: 20px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
-.modal-header h2 { font-size: 18px; margin: 0; }
+.modal-header h2 { font-size: 18px; margin: 0; color: var(--ios-text); }
 
 .close-btn {
     background: none;
@@ -708,7 +743,7 @@ body {
 .form-label {
     display: block;
     font-size: 12px;
-    color: #8E8E93;
+    color: var(--ios-text-sec);
     margin-bottom: 5px;
     font-weight: 600;
 }
@@ -716,18 +751,35 @@ body {
 .form-input, .form-select {
     width: 100%;
     padding: 0 12px;
-    border: 1px solid #E5E5EA;
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     font-size: 16px !important;
     height: 48px;
-    background: #F9F9F9;
+    background: var(--input-bg);
+    color: var(--ios-text);
     outline: none;
 }
 
 .form-input:focus {
-    background: white;
+    background: var(--ios-card);
     border-color: var(--ios-blue);
 }
+
+.radio-box {
+    flex: 1;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    padding: 10px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ios-text);
+}
+.radio-box input { margin: 0; }
 
 .row-2 {
     display: grid;
@@ -768,7 +820,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 12px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .income-val {
@@ -811,10 +863,11 @@ body {
 }
 
 .cat-edit-item {
-    border: 1px solid #eee;
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 15px;
     margin-bottom: 10px;
+    background: var(--ios-card);
 }
 
 .cat-edit-header {
@@ -844,28 +897,50 @@ body {
 }
 
 .keyword-tag {
-    background: #F2F2F7;
+    background: var(--input-bg);
     padding: 6px 10px;
     border-radius: 8px;
     font-size: 12px;
-    color: #333;
+    color: var(--ios-text);
     display: flex;
     align-items: center;
     gap: 6px;
+    border: 1px solid var(--border-color);
 }
 
 .keyword-add-input {
     border: none;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--border-color);
     padding: 8px;
     font-size: 14px;
     width: 120px;
     outline: none;
+    background: transparent;
+    color: var(--ios-text);
+}
+
+/* ==========================================================================
+   MODO PRIVACIDADE (BLUR)
+   ========================================================================== */
+.blur-values .value, 
+.blur-values .tx-val, 
+.blur-values #monthly-income,
+.blur-values .budget-display,
+.blur-values #total-credit-display,
+.blur-values #total-debit-display {
+    filter: blur(20px);
+    user-select: none;
 }
 
 /* ==========================================================================
    MEDIA QUERIES (ADAPTAÇÃO MOBILE)
    ========================================================================== */
+@media (max-width: 600px) {
+    .charts-row {
+        flex-direction: column;
+    }
+}
+
 @media (max-width: 480px) {
     .modal-content {
         width: 100%;
@@ -891,27 +966,45 @@ body {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* Container para os dois gráficos ficarem lado a lado */
-.charts-row {
-    display: flex;
-    gap: 15px;
-    padding: 0 20px 20px 20px;
-    overflow-x: auto; /* Permite scroll horizontal se necessário */
+/* ==========================================================================
+   MODO ESCURO (DARK MODE) - REFINADO
+   ========================================================================== */
+body.dark-mode {
+    --ios-bg: #000000;         /* Fundo preto absoluto */
+    --ios-card: #1C1C1E;       /* Cinza escuro para cards */
+    --ios-text: #FFFFFF;       /* Texto branco */
+    --ios-text-sec: #8E8E93;   /* Texto secundário */
+    --input-bg: #2C2C2E;       /* Fundo de inputs mais claro que o card */
+    --border-color: #38383A;   /* Bordas sutis */
 }
 
-/* Ajuste nas caixas dos gráficos */
-.chart-box {
-    background: var(--ios-card);
-    padding: 15px;
-    border-radius: 20px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
-    flex: 1; /* Ocupam o mesmo espaço */
-    min-width: 280px; /* Tamanho mínimo para não esmagar o gráfico */
+/* Correção de botões redondos no Dark Mode */
+body.dark-mode .btn-icon-header {
+    background-color: #2C2C2E; 
+    color: #0A84FF;
+}
+body.dark-mode .btn-icon-header:hover {
+    background-color: #3A3A3C;
 }
 
-/* Mobile: Se a tela for muito pequena, empilha (opcional, mas recomendado) */
-@media (max-width: 600px) {
-    .charts-row {
-        flex-direction: column;
-    }
+/* Correção de Inputs para não ficarem brancos */
+body.dark-mode .budget-input {
+    color: #0A84FF;
+}
+
+/* Ajustes de Bordas e Cores em Listas */
+body.dark-mode .dropdown-item:active {
+    background-color: #2C2C2E;
+}
+
+/* Ajuste específico para gráfico de progresso em fundo escuro */
+body.dark-mode .cat-progress-bg {
+    background: #2C2C2E;
+}
+
+/* Ajuste do Card de Destaque (A Pagar) */
+body.dark-mode .highlight-card {
+    background-color: #1C1C1E;
+    border: 1px solid #333;
+    color: #FFFFFF;
 }

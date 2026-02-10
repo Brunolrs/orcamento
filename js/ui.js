@@ -1,6 +1,6 @@
 /**
  * UI E RENDERIZAÇÃO
- * Versão: V41 (Tendências, Donut, Orçamento Visual e Separação Crédito/Débito)
+ * Versão: V45 (CORREÇÃO: Inclui renderCategorySummary faltante)
  */
 import { appState } from './state.js';
 import { CHART_COLORS } from './config.js';
@@ -8,7 +8,7 @@ import { formatBRL, formatMonthLabel, vibrate } from './utils.js';
 
 // Variáveis globais para controlar as instâncias dos gráficos
 let chartInstance = null;      // Gráfico de Categorias (Donut)
-let trendChartInstance = null; // Gráfico de Tendência (Barras)
+let trendChartInstance = null; // Gráfico de Tendência (Barras + Linha)
 
 // --- HELPER DE COR ---
 function getColorForCategory(cat) {
@@ -17,6 +17,25 @@ function getColorForCategory(cat) {
   }
   const index = appState.categories.indexOf(cat);
   return CHART_COLORS[index % CHART_COLORS.length] || '#8E8E93';
+}
+
+// --- HELPER MATEMÁTICO: REGRESSÃO LINEAR ---
+function calculateLinearRegression(values) {
+    const n = values.length;
+    if (n < 2) return Array(n).fill(null); 
+
+    let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+    for (let i = 0; i < n; i++) {
+        sumX += i;
+        sumY += values[i];
+        sumXY += i * values[i];
+        sumXX += i * i;
+    }
+
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+
+    return values.map((_, i) => slope * i + intercept);
 }
 
 // --- SELETOR DE MÊS ---
@@ -29,7 +48,6 @@ export function initViewSelector(onChangeCallback) {
   optAll.text = "📊 Visão Geral (Tudo)";
   select.add(optAll);
 
-  // Cria lista de meses únicos baseados nas transações existentes
   const months = Array.from(new Set(appState.transactions.map(t => t.billMonth))).sort().reverse();
   months.forEach(m => {
     const opt = document.createElement('option');
@@ -38,18 +56,12 @@ export function initViewSelector(onChangeCallback) {
     select.add(opt);
   });
 
-  // Define padrão
-  if (!appState.currentViewMonth) {
-      appState.currentViewMonth = "ALL";
-  }
-  
-  // Validação de segurança se o mês sumiu
+  if (!appState.currentViewMonth) appState.currentViewMonth = "ALL";
   if (appState.currentViewMonth !== "ALL" && !months.includes(appState.currentViewMonth)) {
       appState.currentViewMonth = "ALL";
   }
   
   select.value = appState.currentViewMonth;
-
   if(onChangeCallback) onChangeCallback();
 }
 
@@ -60,7 +72,6 @@ export function filterAndRender() {
   let currentIncome = 0;
   let labelText = "";
 
-  // 1. Filtra as transações e calcula a renda
   if (view === "ALL") {
     txs = appState.transactions;
     Object.values(appState.incomeDetails).forEach(list => list.forEach(i => currentIncome += i.val));
@@ -71,7 +82,6 @@ export function filterAndRender() {
     labelText = `Renda de ${formatMonthLabel(view).split(' ')[0]}`;
   }
 
-  // 2. Atualiza UI de Renda
   const inputEl = document.getElementById('monthly-income');
   inputEl.value = currentIncome > 0
     ? currentIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
@@ -80,7 +90,6 @@ export function filterAndRender() {
   
   document.getElementById('btn-manage-income').style.display = (view === "ALL") ? "none" : "flex";
 
-  // 3. Atualiza UI de Orçamento (Input)
   const budgetInput = document.getElementById('month-budget');
   if (budgetInput) {
     if (view === "ALL") {
@@ -97,11 +106,10 @@ export function filterAndRender() {
     }
   }
 
-  // 4. Chama a renderização pesada
   renderListsAndCharts(txs, currentIncome);
 }
 
-// --- CORE: CÁLCULOS E RENDERIZAÇÃO DA TELA ---
+// --- CORE: CÁLCULOS E RENDERIZAÇÃO ---
 function renderListsAndCharts(transactions, currentIncome) {
   const output = document.getElementById('output');
   output.innerHTML = '';
@@ -113,11 +121,9 @@ function renderListsAndCharts(transactions, currentIncome) {
   const catTotals = {};
   const grouped = {};
 
-  // Inicializa agrupamento
   appState.categories.forEach(c => grouped[c] = []);
   if(!grouped["Outros"]) grouped["Outros"] = [];
 
-  // Ordenação por Data de Compra (Decrescente)
   transactions.sort((a, b) => {
     const [da, ma, ya] = a.date.split('.');
     const [db, mb, yb] = b.date.split('.');
@@ -126,33 +132,30 @@ function renderListsAndCharts(transactions, currentIncome) {
     return tb - ta; 
   });
 
-  // Loop Principal de Cálculo
   transactions.forEach(t => {
     let cat = appState.categories.includes(t.category) ? t.category : "Outros";
     grouped[cat].push(t);
 
-    if(t.amount > 0) { // É Despesa
+    if(t.amount > 0) { // Despesa
       gross += t.amount;
       catTotals[cat] = (catTotals[cat] || 0) + t.amount;
       
-      // Lógica: Crédito vs Débito
-      const method = t.paymentMethod || 'credit'; // Se antigo, assume crédito
+      const method = t.paymentMethod || 'credit';
       if (method === 'debit') {
           totalDebit += t.amount;
       } else {
           totalCredit += t.amount;
       }
 
-    } else { // É Reembolso/Pagamento
+    } else { // Reembolso
       refunds += Math.abs(t.amount);
-      totalCredit -= Math.abs(t.amount); // Abate do total de fatura
+      totalCredit -= Math.abs(t.amount);
     }
   });
 
   const net = gross - refunds;
   const leftover = currentIncome - net;
 
-  // --- ATUALIZA CARDS DO DASHBOARD ---
   document.getElementById('month-gross').innerText = formatBRL(gross);
   document.getElementById('month-refunds').innerText = "- " + formatBRL(refunds);
   document.getElementById('month-net').innerText = formatBRL(net);
@@ -161,14 +164,13 @@ function renderListsAndCharts(transactions, currentIncome) {
   leftoverEl.innerText = formatBRL(leftover);
   leftoverEl.style.color = leftover >= 0 ? '#4CD964' : '#FF3B30';
 
-  // --- ATUALIZA SUB-TOTAIS (CRÉDITO VS DÉBITO) ---
   const creditDisplay = document.getElementById('total-credit-display');
   const debitDisplay = document.getElementById('total-debit-display');
   
-  if(creditDisplay) creditDisplay.innerText = formatBRL(Math.max(0, totalCredit)); // Evita negativo visual
+  if(creditDisplay) creditDisplay.innerText = formatBRL(Math.max(0, totalCredit));
   if(debitDisplay) debitDisplay.innerText = formatBRL(totalDebit);
 
-  // --- BARRA DE PROGRESSO DO ORÇAMENTO ---
+  // Orçamento
   const view = appState.currentViewMonth;
   const budgetEl = document.getElementById('budget-remaining');
   if (budgetEl) {
@@ -183,9 +185,9 @@ function renderListsAndCharts(transactions, currentIncome) {
       const budgetRemaining = currentBudget - gross;
       const percent = Math.min((gross / currentBudget) * 100, 100);
       
-      let barColor = '#4CD964'; // Verde
-      if(percent > 75) barColor = '#FFCC00'; // Amarelo
-      if(percent > 90) barColor = '#FF3B30'; // Vermelho
+      let barColor = '#4CD964';
+      if(percent > 75) barColor = '#FFCC00';
+      if(percent > 90) barColor = '#FF3B30';
 
       budgetEl.innerHTML = `
         <div style="font-size: 18px; font-weight: 800; color: ${budgetRemaining >= 0 ? 'var(--ios-green)' : 'var(--ios-red)'}">${formatBRL(budgetRemaining)}</div>
@@ -199,14 +201,10 @@ function renderListsAndCharts(transactions, currentIncome) {
     }
   }
 
-  // --- ATUALIZA GRÁFICOS ---
-  // Passamos 'catTotals' para o Donut e a função cuida de gerar o de Tendência também
   updateChart(catTotals);
-  
-  // --- ATUALIZA RESUMO EM BARRAS ---
+  // AQUI ESTAVA O ERRO: Chamava a função mas ela não existia no código anterior
   renderCategorySummary(catTotals, gross);
 
-  // --- RENDERIZA A LISTA DE TRANSAÇÕES ---
   Object.keys(grouped).sort().forEach(cat => {
     const items = grouped[cat];
     if(!items || items.length === 0) return;
@@ -231,7 +229,6 @@ function renderListsAndCharts(transactions, currentIncome) {
       const div = document.createElement('div');
       div.className = 'tx-item';
 
-      // Lógica Swipe-to-Delete
       let touchStartX = 0;
       let touchEndX = 0;
       div.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, {passive: true});
@@ -244,7 +241,6 @@ function renderListsAndCharts(transactions, currentIncome) {
       });
 
       if (appState.isEditMode) {
-        // --- MODO EDIÇÃO ---
         const options = appState.categories
           .map(c => `<option value="${c}" ${c === item.category ? 'selected' : ''}>${c}</option>`)
           .join('');
@@ -290,10 +286,7 @@ function renderListsAndCharts(transactions, currentIncome) {
             </div>
           </div>`;
       } else {
-        // --- MODO LEITURA ---
         div.onclick = () => window.editTransaction(item.id);
-        
-        // Ícone se for Débito
         const iconMethod = (item.paymentMethod === 'debit') ? '<i class="fa-solid fa-money-bill-wave" style="font-size:10px; color:#34C759; margin-left:5px;" title="Débito/Pix"></i>' : '';
 
         div.innerHTML = `
@@ -328,7 +321,7 @@ function renderListsAndCharts(transactions, currentIncome) {
   }
 }
 
-// --- RESUMO DE BARRAS POR CATEGORIA ---
+// --- FUNÇÃO QUE FALTAVA: RENDERIZAR BARRAS DE CATEGORIA ---
 function renderCategorySummary(catTotals, totalGross) {
   const container = document.getElementById('category-summary-area');
   if(!container) return;
@@ -359,7 +352,7 @@ function renderCategorySummary(catTotals, totalGross) {
   });
 }
 
-// --- SISTEMA DE GRÁFICOS (DUPLO) ---
+// --- SISTEMA DE GRÁFICOS ---
 function updateChart(currentMonthData) {
   // 1. GRÁFICO DE DONUT (CATEGORIAS)
   const ctxDonut = document.getElementById('expenseChart').getContext('2d');
@@ -396,7 +389,7 @@ function updateChart(currentMonthData) {
     }
   });
 
-  // 2. GRÁFICO DE TENDÊNCIA (BARRAS - 6 MESES)
+  // 2. GRÁFICO DE TENDÊNCIA
   renderTrendChart();
 }
 
@@ -404,48 +397,81 @@ function renderTrendChart() {
     const ctxTrend = document.getElementById('trendChart');
     if(!ctxTrend) return; 
 
-    // Agrupa gastos totais por mês (Histórico completo)
     const monthlyTotals = {};
-    
     appState.transactions.forEach(t => {
-        if (t.amount > 0) { // Considera apenas gastos
+        if (t.amount > 0) { 
             if (!monthlyTotals[t.billMonth]) monthlyTotals[t.billMonth] = 0;
             monthlyTotals[t.billMonth] += t.amount;
         }
     });
 
-    // Pega os últimos 6 meses cronologicamente
-    const sortedMonths = Object.keys(monthlyTotals).sort();
-    const last6Months = sortedMonths.slice(-13);
-    
-    // Gera Labels (Jan, Fev...) e Dados
-    const labels = last6Months.map(m => {
+    let monthsToShow = [];
+
+    // Mês selecionado + 5 seguintes
+    if (appState.currentViewMonth && appState.currentViewMonth !== "ALL") {
+        const [y, m] = appState.currentViewMonth.split('-').map(Number);
+        for (let i = 0; i < 6; i++) {
+            let nextM = m + i;
+            let nextY = y;
+            while(nextM > 12) {
+                nextM -= 12;
+                nextY++;
+            }
+            const monthStr = `${nextY}-${String(nextM).padStart(2,'0')}`;
+            monthsToShow.push(monthStr);
+        }
+    } else {
+        // Fallback: Últimos 6 meses
+        const sorted = Object.keys(monthlyTotals).sort();
+        monthsToShow = sorted.slice(-6);
+        if(monthsToShow.length === 0) {
+            const d = new Date();
+            monthsToShow.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+        }
+    }
+
+    const labels = monthsToShow.map(m => {
         const [y, monthNum] = m.split('-');
         const date = new Date(y, monthNum - 1, 10);
-        return date.toLocaleString('pt-BR', { month: 'short' }).replace('.','').toUpperCase();
+        return date.toLocaleString('pt-BR', { month: 'short', year: '2-digit' }).replace('.','').toUpperCase();
     });
 
-    const dataValues = last6Months.map(m => monthlyTotals[m]);
-    
-    // Cores: Azul para o mês selecionado, Cinza para os outros
-    const barColors = last6Months.map(m => {
+    const dataValues = monthsToShow.map(m => monthlyTotals[m] || 0);
+    const barColors = monthsToShow.map(m => {
         return m === appState.currentViewMonth ? '#007AFF' : '#C7C7CC';
     });
+
+    const trendValues = calculateLinearRegression(dataValues);
 
     if (trendChartInstance) trendChartInstance.destroy();
 
     trendChartInstance = new Chart(ctxTrend, {
-        type: 'bar',
         data: {
             labels: labels,
-            datasets: [{
-                label: 'Gastos',
-                data: dataValues,
-                backgroundColor: barColors,
-                borderRadius: 4,
-                borderSkipped: false,
-                barThickness: 20
-            }]
+            datasets: [
+                {
+                    type: 'bar',
+                    label: 'Gastos',
+                    data: dataValues,
+                    backgroundColor: barColors,
+                    borderRadius: 4,
+                    borderSkipped: false,
+                    barThickness: 20,
+                    order: 2
+                },
+                {
+                    type: 'line',
+                    label: 'Tendência',
+                    data: trendValues,
+                    borderColor: '#FF9500',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0,
+                    order: 1
+                }
+            ]
         },
         options: {
             responsive: true,
@@ -455,7 +481,7 @@ function renderTrendChart() {
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            return ` Total: ${context.parsed.y.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
+                            return ` ${context.dataset.label}: ${context.parsed.y.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
                         }
                     }
                 }
@@ -463,10 +489,10 @@ function renderTrendChart() {
             scales: {
                 x: {
                     grid: { display: false, drawBorder: false },
-                    ticks: { font: { size: 10 }, color: '#8E8E93' }
+                    ticks: { font: { size: 9 }, color: '#8E8E93', maxRotation: 45, minRotation: 0 }
                 },
                 y: {
-                    display: false, // Oculta eixo Y para limpeza visual
+                    display: false,
                     beginAtZero: true
                 }
             }
@@ -500,7 +526,7 @@ export function renderIncomeList() {
   document.getElementById('modal-income-total').innerText = formatBRL(total);
 }
 
-// --- GERENCIADOR DE CATEGORIAS (CONFIGURAÇÕES) ---
+// --- GERENCIADOR DE CATEGORIAS ---
 export function renderCategoryManager() {
   const list = document.getElementById('categories-list');
   list.innerHTML = '';
@@ -546,7 +572,7 @@ export function renderCategoryManager() {
   });
 }
 
-// --- RENDERIZAR PREVIEW DO ETL (IMPORTAÇÃO) ---
+// --- RENDERIZAR PREVIEW DO ETL ---
 export function renderEtlPreview(etlData, onConfirm) {
     let modal = document.getElementById('etl-modal');
     if (!modal) {
@@ -594,7 +620,6 @@ export function renderEtlPreview(etlData, onConfirm) {
         ${!etlData.isValid ? `<div style="margin-top:10px; color:white; font-weight:bold; font-size:12px; background:rgba(0,0,0,0.2); padding:5px; border-radius:8px;">${icon} Diferença: R$ ${diff.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>` : ''}
     `;
 
-    // Identifica Categorias Novas
     const newCats = [];
     Object.keys(etlData.groups).forEach(cat => {
         if (!appState.categories.includes(cat) && cat !== "Outros") {

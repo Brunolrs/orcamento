@@ -1,6 +1,6 @@
 /**
  * MAIN - PONTO DE ENTRADA E CONTROLE
- * Versão: V40 (Excel, Privacidade, Busca, Débito/Crédito)
+ * Versão: V45 (Dark Mode, Excel, Search, CRUD Completo)
  */
 import { auth, provider, signInWithPopup, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase, resetAllData, restoreFromBackup } from './firebase.js';
 import { appState } from './state.js';
@@ -19,7 +19,7 @@ function hideLoading() {
     if(overlay) overlay.style.display = 'none';
 }
 
-// --- APRENDIZADO ATIVO ---
+// --- APRENDIZADO ATIVO (CATEGORIZAÇÃO) ---
 function learnRule(description, category) {
     if (!description || !category || category === "Outros") return;
     const keyword = extractKeyword(description);
@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Começa com loading
     showLoading();
 
+    // Setup de Datas
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -49,21 +50,33 @@ document.addEventListener('DOMContentLoaded', () => {
     if(document.getElementById('manual-date')) document.getElementById('manual-date').value = todayISO;
     if(document.getElementById('manual-invoice-date')) document.getElementById('manual-invoice-date').value = todayISO;
 
-    document.getElementById('search-input').addEventListener('input', (e) => {
-    const term = e.target.value.toLowerCase();
-    const items = document.querySelectorAll('.tx-item'); // Pega os itens já renderizados
+    // --- MODO ESCURO (DARK MODE) ---
+    const btnTheme = document.getElementById('btn-theme');
     
-    items.forEach(item => {
-        const desc = item.querySelector('.tx-desc').innerText.toLowerCase();
-        const cat = item.querySelector('.tx-cat-label').innerText.toLowerCase();
-        // Mostra ou esconde baseada no termo
-        if(desc.includes(term) || cat.includes(term)) {
-            item.style.display = 'block';
-        } else {
-            item.style.display = 'none';
-        }
-    });
-});
+    // 1. Verifica preferência salva
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-mode');
+        if(btnTheme) btnTheme.querySelector('i').classList.replace('fa-moon', 'fa-sun');
+    }
+
+    // 2. Evento de Clique
+    if (btnTheme) {
+        btnTheme.addEventListener('click', () => {
+            vibrate();
+            document.body.classList.toggle('dark-mode');
+            const icon = btnTheme.querySelector('i');
+            
+            if (document.body.classList.contains('dark-mode')) {
+                icon.classList.replace('fa-moon', 'fa-sun');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                icon.classList.replace('fa-sun', 'fa-moon');
+                localStorage.setItem('theme', 'light');
+            }
+        });
+    }
+
     // --- LÓGICA DE LOGIN (POPUP) ---
     const btnLogin = document.getElementById('btn-login');
     if (btnLogin) {
@@ -134,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- EXPORTAR PARA EXCEL (NOVO) ---
+    // --- EXPORTAR PARA EXCEL ---
     const btnExcel = document.getElementById('btn-export-excel');
     if (btnExcel) {
         btnExcel.addEventListener('click', () => {
@@ -172,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "Descrição": item.description,
                 "Categoria": item.category,
                 "Valor": item.amount,
-                "Tipo": item.amount < 0 ? "Reembolso/Crédito" : "Despesa", // Correção de Sinal
+                "Tipo": item.amount < 0 ? "Reembolso/Crédito" : "Despesa", 
                 "Método": item.paymentMethod === 'debit' ? "Débito/Pix" : "Crédito/Fatura",
                 "Mês Ref.": item.billMonth,
                 "Parcelado?": item.description.includes("/") ? "Sim" : "Não"
@@ -190,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- BUSCA RÁPIDA (NOVO) ---
+    // --- BUSCA RÁPIDA ---
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
@@ -208,7 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- MODO PRIVACIDADE (NOVO) ---
+    // --- MODO PRIVACIDADE ---
     const btnPrivacy = document.getElementById('btn-privacy');
     if (btnPrivacy) {
         btnPrivacy.addEventListener('click', () => {
@@ -223,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- OUTROS LISTENERS ---
+    // --- LISTENERS DE UI ---
     const checkInstallment = document.getElementById('is-installment');
     if(checkInstallment) {
         checkInstallment.addEventListener('change', (e) => {
@@ -234,7 +247,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('view-month').addEventListener('change', (e) => {
         appState.currentViewMonth = e.target.value;
         filterAndRender();
-        // Limpa busca ao trocar mês
         if(searchInput) { searchInput.value = ''; }
     });
 
@@ -574,7 +586,7 @@ function saveManualTransaction() {
     const cat = document.getElementById('manual-cat').value;
     const type = document.querySelector('input[name="tx-type"]:checked').value;
     
-    // Captura método (Novo)
+    // Captura método
     const payMethod = document.querySelector('input[name="pay-method"]:checked').value;
 
     const isInstallment = document.getElementById('is-installment') ? document.getElementById('is-installment').checked : false;
@@ -583,7 +595,10 @@ function saveManualTransaction() {
     if(!desc || !valStr || !dateBuyStr || !dateInvStr) { alert("Preencha todos os campos!"); return; }
     let amount = parseFloat(valStr.replace(/\./g, '').replace(',', '.'));
     if (isNaN(amount)) { alert("Valor inválido"); return; }
-    if (type === 'credit') amount = -Math.abs(amount); else amount = Math.abs(amount);
+    
+    // LÓGICA DE SINAL: Despesa = Positivo (+), Crédito/Reembolso = Negativo (-)
+    if (type === 'debit') amount = Math.abs(amount); // Gasto
+    else amount = -Math.abs(amount); // Crédito
     
     const [yB, mB, dB] = dateBuyStr.split('-').map(Number);
     const formattedDateBuy = `${String(dB).padStart(2,'0')}.${String(mB).padStart(2,'0')}.${yB}`;
@@ -604,7 +619,7 @@ function saveManualTransaction() {
                 description: desc, 
                 amount: amount, 
                 category: cat,
-                paymentMethod: payMethod // Salva o método
+                paymentMethod: payMethod 
             };
         }
     } else {
@@ -628,7 +643,7 @@ function saveManualTransaction() {
                 description: finalDesc, 
                 amount: amount, 
                 category: cat, 
-                paymentMethod: payMethod, // Salva o método
+                paymentMethod: payMethod,
                 isBillPayment: false 
             });
         }
@@ -682,6 +697,8 @@ function openManualModal(txToEdit = null) {
             document.getElementById('manual-invoice-date').value = `${yb}-${mb}-10`;
         }
         document.getElementById('manual-cat').value = txToEdit.category;
+        
+        // Se for positivo é Gasto (Debit), se negativo é Crédito
         document.querySelector(`input[name="tx-type"][value="${txToEdit.amount < 0 ? 'credit' : 'debit'}"]`).checked = true;
         
         // Carrega Método
