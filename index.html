@@ -3,19 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gestor Financeiro V39</title>
+    <title>Gestor Financeiro V40</title>
+    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .radio-box {
+            flex: 1;
+            background: #F9F9F9;
+            border: 1px solid #E5E5EA;
+            padding: 10px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .radio-box input { margin: 0; }
+        
+        /* Classe para borrar valores (Privacidade) */
+        .blur-values .value, 
+        .blur-values .tx-val, 
+        .blur-values #monthly-income,
+        .blur-values .budget-display,
+        .blur-values #total-credit-display,
+        .blur-values #total-debit-display {
+            filter: blur(20px);
+            user-select: none;
+        }
+    </style>
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
 </head>
 <body>
     <div id="loading-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:var(--ios-bg); z-index:9999; display:flex; justify-content:center; align-items:center; flex-direction:column;">
         <div style="width: 40px; height: 40px; border: 4px solid #ccc; border-top-color: var(--ios-blue); border-radius: 50%; animation: spin 1s linear infinite;"></div>
         <p style="margin-top:20px; font-weight:600; color:var(--ios-text-sec);">Iniciando...</p>
     </div>
-        <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+    <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
 
     <div id="login-screen" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: var(--ios-bg);">
         <div style="font-size: 50px; color: var(--ios-blue); margin-bottom: 20px;"><i class="fa-solid fa-wallet"></i></div>
@@ -29,7 +59,11 @@
             <div class="top-bar">
                 <div class="app-brand">Minhas Finanças</div>
                 <div class="settings-container">
+                    <button id="btn-privacy" class="btn-icon-header" title="Ocultar Valores" style="margin-right: 5px;">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
                     <button id="btn-toggle-menu" class="btn-icon-header"><i class="fa-solid fa-gear"></i></button>
+                    
                     <div id="main-dropdown" class="dropdown-menu">
                         <button id="btn-open-import" class="dropdown-item"><i class="fa-solid fa-file-import text-blue"></i> Importar TXT</button>
                         <button id="btn-open-categories" class="dropdown-item"><i class="fa-solid fa-list text-blue"></i> Configurações</button>
@@ -41,9 +75,11 @@
                     </div>
                 </div>
             </div>
+            
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <select id="view-month" class="view-selector"></select>
             </div>
+            
             <div class="income-container">
                 <div class="income-label" id="income-label-text">Renda Total</div>
                 <div class="income-wrapper">
@@ -74,23 +110,62 @@
             <div class="card"><div class="card-label">Abatimentos</div><div class="card-value val-refund" id="month-refunds">R$ 0,00</div></div>
         </div>
 
-        <div class="highlight-card">
-            <div><div class="label">A Pagar (Líquido)</div><div class="value" id="month-net">R$ 0,00</div></div>
-            <div style="text-align: right;"><div class="label" style="opacity: 0.7;">Sobra Salário</div><div class="value" id="month-leftover" style="font-size: 20px; color: #4CD964;">R$ 0,00</div></div>
+        <div class="highlight-card" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                <div>
+                    <div class="label">A Pagar (Total)</div>
+                    <div class="value" id="month-net">R$ 0,00</div>
+                </div>
+                <div style="text-align: right;">
+                    <div class="label" style="opacity: 0.7;">Sobra Salário</div>
+                    <div class="value" id="month-leftover" style="font-size: 18px; color: #4CD964;">R$ 0,00</div>
+                </div>
+            </div>
+            
+            <div style="width: 100%; height: 1px; background: rgba(255,255,255,0.2);"></div>
+            
+            <div style="display: flex; width: 100%; justify-content: space-between; font-size: 13px;">
+                <span style="opacity: 0.9;">💳 Fatura: <strong id="total-credit-display">R$ 0,00</strong></span>
+                <span style="opacity: 0.9;">💸 Débito: <strong id="total-debit-display">R$ 0,00</strong></span>
+            </div>
         </div>
 
         <div class="collapsible-header" id="btn-col-chart"><span>Gráfico</span> <i id="icon-chart" class="fa-solid fa-chevron-up"></i></div>
-        <div id="chart-wrapper"><div class="chart-box"><canvas id="expenseChart"></canvas></div></div>
+        <div id="chart-wrapper">
+            <div class="charts-row">
+                <div class="chart-box">
+                    <div style="font-size:12px; font-weight:700; color:#8E8E93; margin-bottom:10px; text-align:center;">DISTRIBUIÇÃO</div>
+                    <div style="position: relative; height: 220px;">
+                        <canvas id="expenseChart"></canvas>
+                    </div>
+                </div>
+                
+            <div class="chart-box">
+                <div style="font-size:12px; font-weight:700; color:#8E8E93; margin-bottom:10px; text-align:center;">EVOLUÇÃO (ANO)</div>
+                <div style="position: relative; height: 220px;">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+            </div>
+        </div>
 
         <div class="collapsible-header" id="btn-col-cat"><span>Resumo por Categoria</span> <i id="icon-cat" class="fa-solid fa-chevron-up"></i></div>
         <div id="category-summary-area" class="cat-summary-grid"></div>
 
-        <div class="section-header-wrapper">
-            <div class="collapsible-header" id="btn-col-list" style="flex-grow: 1; margin-bottom: 0;"><span>Extrato Detalhado</span> <i id="icon-list" class="fa-solid fa-chevron-up"></i></div>
-            <button id="btn-toggle-edit" class="btn-toggle-edit" title="Editar Lista"><i class="fa-solid fa-pen-to-square"></i></button>
-        </div>
-        <div id="output" class="list-area"></div>
+        <div class="section-header-wrapper" style="flex-direction: column; align-items: stretch; gap: 10px; margin-top: 20px;">
+            
+            <div style="padding: 0 20px;">
+                <input type="text" id="search-input" placeholder="🔍 Buscar despesa..." class="form-input" style="height: 40px; border-radius: 20px;">
+            </div>
 
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-right: 20px;">
+                <div class="collapsible-header" id="btn-col-list" style="flex-grow: 1; margin-bottom: 0;"><span>Extrato Detalhado</span> <i id="icon-list" class="fa-solid fa-chevron-up"></i></div>
+                <button id="btn-toggle-edit" class="btn-toggle-edit" title="Editar Lista"><i class="fa-solid fa-pen-to-square"></i></button>
+            </div>
+        </div>
+        
+        <div id="output" class="list-area"></div>
+        
         <button id="btn-open-manual" class="fab-add"><i class="fa-solid fa-plus"></i></button>
     </div>
 
@@ -100,20 +175,19 @@
             <div class="modal-body">
                 
                 <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #eee;">
-                    <h3 style="font-size: 14px; color: #8E8E93; margin-bottom: 10px; text-transform: uppercase;">Segurança de Dados</h3>
+                    <h3 style="font-size: 14px; color: #8E8E93; margin-bottom: 10px; text-transform: uppercase;">Dados e Relatórios</h3>
                     <div class="row-2">
                         <button id="btn-export-backup" class="btn-block" style="background: #FF9500; color: white;">
-                            <i class="fa-solid fa-download"></i> Baixar Backup
-                        </button>
-                        <button id="btn-export-excel" class="btn-block" style="background: #1D6F42; color: white; margin-top: 10px;">
-                            <i class="fa-solid fa-file-excel"></i> Baixar Relatório (Excel)
+                            <i class="fa-solid fa-download"></i> Backup (JSON)
                         </button>
                         <label for="restore-input" class="btn-block" style="background: #333; color: white; text-align: center; cursor: pointer;">
                             <i class="fa-solid fa-upload"></i> Restaurar
                         </label>
                         <input type="file" id="restore-input" accept=".json" style="display: none;">
                     </div>
-                    <p style="font-size: 11px; color: #8E8E93; margin-top: 5px;">Baixe um arquivo .json para salvar seus dados no PC/Celular.</p>
+                    <button id="btn-export-excel" class="btn-block" style="background: #1D6F42; color: white; margin-top: 10px;">
+                        <i class="fa-solid fa-file-excel"></i> Baixar Relatório (Excel)
+                    </button>
                 </div>
 
                 <h3 style="font-size: 14px; color: #8E8E93; margin-bottom: 10px; text-transform: uppercase;">Categorias</h3>
@@ -132,7 +206,22 @@
                     <div class="form-group"><label class="form-label">Valor (R$)</label><input type="text" id="manual-val" class="form-input" placeholder="0,00" inputmode="numeric"></div>
                     <div class="form-group"><label class="form-label">Data Compra</label><input type="date" id="manual-date" class="form-input"></div>
                 </div>
-                <div class="form-group"><label class="form-label" style="color: var(--ios-blue);">Data Fatura</label><input type="date" id="manual-invoice-date" class="form-input"></div>
+
+                <div class="form-group">
+                    <label class="form-label">Método de Pagamento</label>
+                    <div style="display: flex; gap: 10px;">
+                        <label class="radio-box">
+                            <input type="radio" name="pay-method" value="credit" checked>
+                            <span>💳 Crédito</span>
+                        </label>
+                        <label class="radio-box">
+                            <input type="radio" name="pay-method" value="debit">
+                            <span>💸 Débito / Pix</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group"><label class="form-label" style="color: var(--ios-blue);">Data Fatura / Competência</label><input type="date" id="manual-invoice-date" class="form-input"></div>
                 
                 <div class="form-group"><label class="form-label">Categoria</label><select id="manual-cat" class="form-select"></select></div>
                 

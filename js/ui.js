@@ -1,12 +1,14 @@
 /**
  * UI E RENDERIZAÇÃO
- * Responsável por desenhar a tela, gráficos, listas e lógica visual.
+ * Versão: V41 (Tendências, Donut, Orçamento Visual e Separação Crédito/Débito)
  */
 import { appState } from './state.js';
 import { CHART_COLORS } from './config.js';
 import { formatBRL, formatMonthLabel, vibrate } from './utils.js';
 
-let chartInstance = null;
+// Variáveis globais para controlar as instâncias dos gráficos
+let chartInstance = null;      // Gráfico de Categorias (Donut)
+let trendChartInstance = null; // Gráfico de Tendência (Barras)
 
 // --- HELPER DE COR ---
 function getColorForCategory(cat) {
@@ -17,7 +19,7 @@ function getColorForCategory(cat) {
   return CHART_COLORS[index % CHART_COLORS.length] || '#8E8E93';
 }
 
-// --- SELETOR DE MÊS (MODIFICADO) ---
+// --- SELETOR DE MÊS ---
 export function initViewSelector(onChangeCallback) {
   const select = document.getElementById('view-month');
   select.innerHTML = '';
@@ -27,7 +29,7 @@ export function initViewSelector(onChangeCallback) {
   optAll.text = "📊 Visão Geral (Tudo)";
   select.add(optAll);
 
-  // Cria lista de meses únicos baseados nas transações
+  // Cria lista de meses únicos baseados nas transações existentes
   const months = Array.from(new Set(appState.transactions.map(t => t.billMonth))).sort().reverse();
   months.forEach(m => {
     const opt = document.createElement('option');
@@ -36,13 +38,12 @@ export function initViewSelector(onChangeCallback) {
     select.add(opt);
   });
 
-  // --- ALTERAÇÃO AQUI ---
-  // Define "ALL" como padrão se nenhuma seleção existir, forçando a Visão Geral ao abrir.
+  // Define padrão
   if (!appState.currentViewMonth) {
       appState.currentViewMonth = "ALL";
   }
   
-  // Se por acaso estiver selecionado um mês que não existe mais (ex: após deletar), volta para ALL
+  // Validação de segurança se o mês sumiu
   if (appState.currentViewMonth !== "ALL" && !months.includes(appState.currentViewMonth)) {
       appState.currentViewMonth = "ALL";
   }
@@ -52,17 +53,16 @@ export function initViewSelector(onChangeCallback) {
   if(onChangeCallback) onChangeCallback();
 }
 
-// --- FILTRO PRINCIPAL E RENDERIZAÇÃO ---
+// --- FILTRO PRINCIPAL E ORQUESTRADOR ---
 export function filterAndRender() {
   const view = appState.currentViewMonth;
   let txs = [];
   let currentIncome = 0;
   let labelText = "";
 
-  // Filtra transações
+  // 1. Filtra as transações e calcula a renda
   if (view === "ALL") {
     txs = appState.transactions;
-    // Soma todas as rendas de todos os meses
     Object.values(appState.incomeDetails).forEach(list => list.forEach(i => currentIncome += i.val));
     labelText = "Renda Acumulada";
   } else {
@@ -71,17 +71,16 @@ export function filterAndRender() {
     labelText = `Renda de ${formatMonthLabel(view).split(' ')[0]}`;
   }
 
-  // 1. Atualiza Input de Renda
+  // 2. Atualiza UI de Renda
   const inputEl = document.getElementById('monthly-income');
   inputEl.value = currentIncome > 0
     ? currentIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
     : "0,00";
   document.getElementById('income-label-text').innerText = labelText;
   
-  // Botão de gerenciar renda só aparece em meses específicos
   document.getElementById('btn-manage-income').style.display = (view === "ALL") ? "none" : "flex";
 
-  // 2. Atualiza Input de Orçamento (Meta)
+  // 3. Atualiza UI de Orçamento (Input)
   const budgetInput = document.getElementById('month-budget');
   if (budgetInput) {
     if (view === "ALL") {
@@ -98,23 +97,27 @@ export function filterAndRender() {
     }
   }
 
+  // 4. Chama a renderização pesada
   renderListsAndCharts(txs, currentIncome);
 }
 
-// --- CORE: LISTAS, GRÁFICOS E CÁLCULOS ---
+// --- CORE: CÁLCULOS E RENDERIZAÇÃO DA TELA ---
 function renderListsAndCharts(transactions, currentIncome) {
   const output = document.getElementById('output');
   output.innerHTML = '';
 
   let gross = 0, refunds = 0;
+  let totalDebit = 0;
+  let totalCredit = 0;
+
   const catTotals = {};
   const grouped = {};
 
-  // Inicializa grupos
+  // Inicializa agrupamento
   appState.categories.forEach(c => grouped[c] = []);
   if(!grouped["Outros"]) grouped["Outros"] = [];
 
-  // Ordenação por Data de Compra (Visual)
+  // Ordenação por Data de Compra (Decrescente)
   transactions.sort((a, b) => {
     const [da, ma, ya] = a.date.split('.');
     const [db, mb, yb] = b.date.split('.');
@@ -123,23 +126,33 @@ function renderListsAndCharts(transactions, currentIncome) {
     return tb - ta; 
   });
 
-  // Cálculos
+  // Loop Principal de Cálculo
   transactions.forEach(t => {
     let cat = appState.categories.includes(t.category) ? t.category : "Outros";
     grouped[cat].push(t);
 
-    if(t.amount > 0) {
+    if(t.amount > 0) { // É Despesa
       gross += t.amount;
       catTotals[cat] = (catTotals[cat] || 0) + t.amount;
-    } else {
+      
+      // Lógica: Crédito vs Débito
+      const method = t.paymentMethod || 'credit'; // Se antigo, assume crédito
+      if (method === 'debit') {
+          totalDebit += t.amount;
+      } else {
+          totalCredit += t.amount;
+      }
+
+    } else { // É Reembolso/Pagamento
       refunds += Math.abs(t.amount);
+      totalCredit -= Math.abs(t.amount); // Abate do total de fatura
     }
   });
 
   const net = gross - refunds;
   const leftover = currentIncome - net;
 
-  // Atualiza Cards do Dashboard
+  // --- ATUALIZA CARDS DO DASHBOARD ---
   document.getElementById('month-gross').innerText = formatBRL(gross);
   document.getElementById('month-refunds').innerText = "- " + formatBRL(refunds);
   document.getElementById('month-net').innerText = formatBRL(net);
@@ -148,27 +161,52 @@ function renderListsAndCharts(transactions, currentIncome) {
   leftoverEl.innerText = formatBRL(leftover);
   leftoverEl.style.color = leftover >= 0 ? '#4CD964' : '#FF3B30';
 
-  // --- CÁLCULO DE SALDO DO ORÇAMENTO ---
+  // --- ATUALIZA SUB-TOTAIS (CRÉDITO VS DÉBITO) ---
+  const creditDisplay = document.getElementById('total-credit-display');
+  const debitDisplay = document.getElementById('total-debit-display');
+  
+  if(creditDisplay) creditDisplay.innerText = formatBRL(Math.max(0, totalCredit)); // Evita negativo visual
+  if(debitDisplay) debitDisplay.innerText = formatBRL(totalDebit);
+
+  // --- BARRA DE PROGRESSO DO ORÇAMENTO ---
   const view = appState.currentViewMonth;
   const budgetEl = document.getElementById('budget-remaining');
   if (budgetEl) {
     const currentBudget = (view !== "ALL" && appState.monthlyBudgets[view]) ? appState.monthlyBudgets[view] : 0;
-    const budgetRemaining = currentBudget - gross;
+    
+    budgetEl.innerHTML = '';
 
     if (view === "ALL" || currentBudget === 0) {
       budgetEl.innerText = "---";
       budgetEl.style.color = "var(--ios-text)";
     } else {
-      budgetEl.innerText = formatBRL(budgetRemaining);
-      budgetEl.style.color = budgetRemaining >= 0 ? "var(--ios-green)" : "var(--ios-red)";
+      const budgetRemaining = currentBudget - gross;
+      const percent = Math.min((gross / currentBudget) * 100, 100);
+      
+      let barColor = '#4CD964'; // Verde
+      if(percent > 75) barColor = '#FFCC00'; // Amarelo
+      if(percent > 90) barColor = '#FF3B30'; // Vermelho
+
+      budgetEl.innerHTML = `
+        <div style="font-size: 18px; font-weight: 800; color: ${budgetRemaining >= 0 ? 'var(--ios-green)' : 'var(--ios-red)'}">${formatBRL(budgetRemaining)}</div>
+        <div style="font-size: 11px; color: #8E8E93; margin-top: 5px; display:flex; justify-content:space-between;">
+            <span>${percent.toFixed(0)}% utilizado</span>
+        </div>
+        <div style="height: 6px; background: #E5E5EA; border-radius: 4px; margin-top: 5px; overflow: hidden;">
+            <div style="height: 100%; width: ${percent}%; background: ${barColor}; transition: width 0.5s ease;"></div>
+        </div>
+      `;
     }
   }
 
-  // Atualiza Gráficos e Resumos
+  // --- ATUALIZA GRÁFICOS ---
+  // Passamos 'catTotals' para o Donut e a função cuida de gerar o de Tendência também
   updateChart(catTotals);
+  
+  // --- ATUALIZA RESUMO EM BARRAS ---
   renderCategorySummary(catTotals, gross);
 
-  // --- RENDERIZA LISTA DETALHADA ---
+  // --- RENDERIZA A LISTA DE TRANSAÇÕES ---
   Object.keys(grouped).sort().forEach(cat => {
     const items = grouped[cat];
     if(!items || items.length === 0) return;
@@ -193,7 +231,7 @@ function renderListsAndCharts(transactions, currentIncome) {
       const div = document.createElement('div');
       div.className = 'tx-item';
 
-      // SWIPE TO DELETE (Mobile)
+      // Lógica Swipe-to-Delete
       let touchStartX = 0;
       let touchEndX = 0;
       div.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, {passive: true});
@@ -206,7 +244,7 @@ function renderListsAndCharts(transactions, currentIncome) {
       });
 
       if (appState.isEditMode) {
-        // --- MODO EDIÇÃO (INPUTS COMPLETOS) ---
+        // --- MODO EDIÇÃO ---
         const options = appState.categories
           .map(c => `<option value="${c}" ${c === item.category ? 'selected' : ''}>${c}</option>`)
           .join('');
@@ -236,7 +274,7 @@ function renderListsAndCharts(transactions, currentIncome) {
                   onchange="window.updateTx('${item.id}', 'date', this.value)">
               </div>
               <div style="flex:1;">
-                <label style="font-size:10px; color:#007AFF; font-weight:700; margin-left:2px;">Fatura (Mês)</label>
+                <label style="font-size:10px; color:#007AFF; font-weight:700; margin-left:2px;">Fatura</label>
                 <input type="date" class="edit-input" value="${dateInvISO}" style="color:var(--ios-blue); font-weight:600;"
                   onchange="window.updateTx('${item.id}', 'invoiceDate', this.value)">
               </div>
@@ -252,13 +290,17 @@ function renderListsAndCharts(transactions, currentIncome) {
             </div>
           </div>`;
       } else {
-        // --- MODO VISUALIZAÇÃO (CLEAN) ---
+        // --- MODO LEITURA ---
         div.onclick = () => window.editTransaction(item.id);
+        
+        // Ícone se for Débito
+        const iconMethod = (item.paymentMethod === 'debit') ? '<i class="fa-solid fa-money-bill-wave" style="font-size:10px; color:#34C759; margin-left:5px;" title="Débito/Pix"></i>' : '';
+
         div.innerHTML = `
           <div class="tx-row-main">
             <div class="tx-main">
               <span class="tx-desc">${item.description}</span>
-              <span class="tx-date">${item.date}</span>
+              <span class="tx-date">${item.date} ${iconMethod}</span>
             </div>
             <div class="tx-side">
               <span class="tx-val ${isRefund ? 'color-pos' : 'color-neg'}">
@@ -317,15 +359,17 @@ function renderCategorySummary(catTotals, totalGross) {
   });
 }
 
-// --- GRÁFICO (CHART.JS) ---
-function updateChart(data) {
-  const ctx = document.getElementById('expenseChart').getContext('2d');
-  const activeCats = Object.keys(data).filter(k => data[k] > 0);
-  const values = activeCats.map(k => data[k]);
+// --- SISTEMA DE GRÁFICOS (DUPLO) ---
+function updateChart(currentMonthData) {
+  // 1. GRÁFICO DE DONUT (CATEGORIAS)
+  const ctxDonut = document.getElementById('expenseChart').getContext('2d');
+  const activeCats = Object.keys(currentMonthData).filter(k => currentMonthData[k] > 0);
+  const values = activeCats.map(k => currentMonthData[k]);
   const colors = activeCats.map(cat => getColorForCategory(cat));
 
-  if(chartInstance) chartInstance.destroy();
-  chartInstance = new Chart(ctx, {
+  if (chartInstance) chartInstance.destroy();
+  
+  chartInstance = new Chart(ctxDonut, {
     type: 'doughnut',
     data: {
       labels: activeCats,
@@ -338,7 +382,7 @@ function updateChart(data) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: '70%',
+      cutout: '65%',
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -351,6 +395,83 @@ function updateChart(data) {
       }
     }
   });
+
+  // 2. GRÁFICO DE TENDÊNCIA (BARRAS - 6 MESES)
+  renderTrendChart();
+}
+
+function renderTrendChart() {
+    const ctxTrend = document.getElementById('trendChart');
+    if(!ctxTrend) return; 
+
+    // Agrupa gastos totais por mês (Histórico completo)
+    const monthlyTotals = {};
+    
+    appState.transactions.forEach(t => {
+        if (t.amount > 0) { // Considera apenas gastos
+            if (!monthlyTotals[t.billMonth]) monthlyTotals[t.billMonth] = 0;
+            monthlyTotals[t.billMonth] += t.amount;
+        }
+    });
+
+    // Pega os últimos 6 meses cronologicamente
+    const sortedMonths = Object.keys(monthlyTotals).sort();
+    const last6Months = sortedMonths.slice(-13);
+    
+    // Gera Labels (Jan, Fev...) e Dados
+    const labels = last6Months.map(m => {
+        const [y, monthNum] = m.split('-');
+        const date = new Date(y, monthNum - 1, 10);
+        return date.toLocaleString('pt-BR', { month: 'short' }).replace('.','').toUpperCase();
+    });
+
+    const dataValues = last6Months.map(m => monthlyTotals[m]);
+    
+    // Cores: Azul para o mês selecionado, Cinza para os outros
+    const barColors = last6Months.map(m => {
+        return m === appState.currentViewMonth ? '#007AFF' : '#C7C7CC';
+    });
+
+    if (trendChartInstance) trendChartInstance.destroy();
+
+    trendChartInstance = new Chart(ctxTrend, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Gastos',
+                data: dataValues,
+                backgroundColor: barColors,
+                borderRadius: 4,
+                borderSkipped: false,
+                barThickness: 20
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return ` Total: ${context.parsed.y.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false, drawBorder: false },
+                    ticks: { font: { size: 10 }, color: '#8E8E93' }
+                },
+                y: {
+                    display: false, // Oculta eixo Y para limpeza visual
+                    beginAtZero: true
+                }
+            }
+        }
+    });
 }
 
 // --- LISTA DE RENDAS ---
@@ -379,7 +500,7 @@ export function renderIncomeList() {
   document.getElementById('modal-income-total').innerText = formatBRL(total);
 }
 
-// --- GERENCIADOR DE CATEGORIAS ---
+// --- GERENCIADOR DE CATEGORIAS (CONFIGURAÇÕES) ---
 export function renderCategoryManager() {
   const list = document.getElementById('categories-list');
   list.innerHTML = '';
@@ -425,8 +546,7 @@ export function renderCategoryManager() {
   });
 }
 
-// --- RENDERIZAR PREVIEW DO ETL ---
-// Agora detecta e destaca visualmente novas categorias sugeridas pela IA
+// --- RENDERIZAR PREVIEW DO ETL (IMPORTAÇÃO) ---
 export function renderEtlPreview(etlData, onConfirm) {
     let modal = document.getElementById('etl-modal');
     if (!modal) {
@@ -442,7 +562,7 @@ export function renderEtlPreview(etlData, onConfirm) {
                 <div class="modal-body" style="overflow-y: auto; padding: 15px;">
                     <div id="etl-status-card" class="highlight-card" style="margin: 0 0 15px 0; padding: 15px;"></div>
                     <div id="etl-new-cats-alert" style="display:none; background:#FFF4CE; border:1px solid #FFCC00; border-radius:12px; padding:10px; margin-bottom:15px;">
-                        <div style="font-size:12px; font-weight:700; color:#997700; margin-bottom:5px;"><i class="fa-solid fa-lightbulb"></i> A IA sugeriu novas categorias:</div>
+                        <div style="font-size:12px; font-weight:700; color:#997700; margin-bottom:5px;"><i class="fa-solid fa-lightbulb"></i> Sugestões da IA (Novas Categorias):</div>
                         <div id="etl-new-cats-list" style="display:flex; gap:5px; flex-wrap:wrap;"></div>
                     </div>
                     <div id="etl-groups-area"></div>
@@ -474,7 +594,7 @@ export function renderEtlPreview(etlData, onConfirm) {
         ${!etlData.isValid ? `<div style="margin-top:10px; color:white; font-weight:bold; font-size:12px; background:rgba(0,0,0,0.2); padding:5px; border-radius:8px;">${icon} Diferença: R$ ${diff.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>` : ''}
     `;
 
-    // Detecta categorias novas
+    // Identifica Categorias Novas
     const newCats = [];
     Object.keys(etlData.groups).forEach(cat => {
         if (!appState.categories.includes(cat) && cat !== "Outros") {
@@ -497,7 +617,6 @@ export function renderEtlPreview(etlData, onConfirm) {
     
     Object.keys(etlData.groups).sort().forEach(cat => {
         const group = etlData.groups[cat];
-        // Adiciona label de "NOVA" ao lado do nome da categoria se for inédita
         const isNew = newCats.includes(cat);
         const badge = isNew ? `<span style="background:#FFCC00; color:black; padding:2px 6px; border-radius:6px; font-size:9px; margin-left:6px; vertical-align:middle;">✨ NOVA</span>` : '';
 

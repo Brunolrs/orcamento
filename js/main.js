@@ -1,6 +1,6 @@
 /**
  * MAIN - PONTO DE ENTRADA E CONTROLE
- * Versão: Login Popup + Sistema de Backup e Restauração
+ * Versão: V40 (Excel, Privacidade, Busca, Débito/Crédito)
  */
 import { auth, provider, signInWithPopup, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase, resetAllData, restoreFromBackup } from './firebase.js';
 import { appState } from './state.js';
@@ -49,23 +49,34 @@ document.addEventListener('DOMContentLoaded', () => {
     if(document.getElementById('manual-date')) document.getElementById('manual-date').value = todayISO;
     if(document.getElementById('manual-invoice-date')) document.getElementById('manual-invoice-date').value = todayISO;
 
+    document.getElementById('search-input').addEventListener('input', (e) => {
+    const term = e.target.value.toLowerCase();
+    const items = document.querySelectorAll('.tx-item'); // Pega os itens já renderizados
+    
+    items.forEach(item => {
+        const desc = item.querySelector('.tx-desc').innerText.toLowerCase();
+        const cat = item.querySelector('.tx-cat-label').innerText.toLowerCase();
+        // Mostra ou esconde baseada no termo
+        if(desc.includes(term) || cat.includes(term)) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+});
     // --- LÓGICA DE LOGIN (POPUP) ---
     const btnLogin = document.getElementById('btn-login');
     if (btnLogin) {
         btnLogin.addEventListener('click', () => {
             vibrate();
-            // O Popup funciona melhor em Mobile/WebViews que o Redirect
             signInWithPopup(auth, provider)
                 .then((result) => {
                     console.log("Login realizado!");
-                    // O onAuthStateChanged vai lidar com a tela
                 })
                 .catch((error) => {
                     console.error("Erro no login:", error);
                     if (error.code === 'auth/popup-blocked') {
                         alert("⚠️ Popup bloqueado. Por favor, permita popups para logar.");
-                    } else if (error.code === 'auth/popup-closed-by-user') {
-                        // Usuário fechou, ok.
                     } else {
                         alert("Erro ao entrar: " + error.message);
                     }
@@ -73,9 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- SISTEMA DE BACKUP ---
-    
-    // 1. Exportar (Baixar)
+    // --- SISTEMA DE BACKUP (JSON) ---
     const btnExport = document.getElementById('btn-export-backup');
     if (btnExport) {
         btnExport.addEventListener('click', () => {
@@ -100,77 +109,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-   // --- EXPORTAR PARA EXCEL (COM FILTRO DE MÊS) ---
-    const btnExcel = document.getElementById('btn-export-excel');
-    if (btnExcel) {
-        btnExcel.addEventListener('click', () => {
-            vibrate();
-
-            const currentMonth = appState.currentViewMonth;
-            let dataToExport = [];
-            let fileName = "";
-
-            // 1. Filtra os dados baseados na visualização atual
-            if (!currentMonth || currentMonth === "ALL") {
-                // Se estiver na "Visão Geral", baixa TUDO
-                dataToExport = [...appState.transactions];
-                fileName = `Relatorio_Geral_${new Date().toISOString().split('T')[0]}.xlsx`;
-            } else {
-                // Se tiver um mês selecionado, baixa SÓ AQUELE MÊS
-                dataToExport = appState.transactions.filter(t => t.billMonth === currentMonth);
-                fileName = `Extrato_${currentMonth}.xlsx`;
-            }
-
-            if (dataToExport.length === 0) {
-                alert("Não há transações neste mês para exportar.");
-                return;
-            }
-
-            // 2. Ordena por data (mais recente primeiro)
-            dataToExport.sort((a, b) => {
-                const [da, ma, ya] = a.date.split('.');
-                const [db, mb, yb] = b.date.split('.');
-                return new Date(yb, mb - 1, db) - new Date(ya, ma - 1, da);
-            });
-
-            // 3. Formata as colunas para o Excel
-            const formattedData = dataToExport.map(item => ({
-                "Data Compra": item.date,
-                "Descrição": item.description,
-                "Categoria": item.category,
-                "Valor": item.amount, 
-                // AQUI ESTAVA O ERRO:
-                // Se for menor que 0 (negativo) -> É Reembolso/Crédito
-                // Se for maior que 0 (positivo) -> É Despesa
-                "Tipo": item.amount < 0 ? "Reembolso/Crédito" : "Despesa",
-                "Mês Ref.": item.billMonth,
-                "Parcelado?": item.description.includes("/") ? "Sim" : "Não"
-            }));
-
-            // 4. Gera a Planilha
-            const ws = XLSX.utils.json_to_sheet(formattedData);
-
-            // Ajuste visual das colunas
-            const wscols = [
-                {wch: 12}, // Data
-                {wch: 30}, // Descrição
-                {wch: 15}, // Categoria
-                {wch: 10}, // Valor
-                {wch: 10}, // Tipo
-                {wch: 10}, // Mês
-                {wch: 8}   // Parcelado
-            ];
-            ws['!cols'] = wscols;
-
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Extrato");
-
-            // 5. Download
-            XLSX.writeFile(wb, fileName);
-        });
-    }
-
-    // 2. Importar (Restaurar)
     const inputRestore = document.getElementById('restore-input');
     if (inputRestore) {
         inputRestore.addEventListener('change', async (e) => {
@@ -192,7 +130,96 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 reader.readAsText(file);
             }
-            e.target.value = ''; // Limpa para permitir reuso
+            e.target.value = ''; 
+        });
+    }
+
+    // --- EXPORTAR PARA EXCEL (NOVO) ---
+    const btnExcel = document.getElementById('btn-export-excel');
+    if (btnExcel) {
+        btnExcel.addEventListener('click', () => {
+            vibrate();
+            if (typeof XLSX === 'undefined') {
+                alert("Erro: Biblioteca Excel não carregada. Verifique sua conexão.");
+                return;
+            }
+
+            const currentMonth = appState.currentViewMonth;
+            let dataToExport = [];
+            let fileName = "";
+
+            if (!currentMonth || currentMonth === "ALL") {
+                dataToExport = [...appState.transactions];
+                fileName = `Relatorio_Geral_${new Date().toISOString().split('T')[0]}.xlsx`;
+            } else {
+                dataToExport = appState.transactions.filter(t => t.billMonth === currentMonth);
+                fileName = `Extrato_${currentMonth}.xlsx`;
+            }
+
+            if (dataToExport.length === 0) {
+                alert("Não há transações neste mês para exportar.");
+                return;
+            }
+
+            dataToExport.sort((a, b) => {
+                const [da, ma, ya] = a.date.split('.');
+                const [db, mb, yb] = b.date.split('.');
+                return new Date(yb, mb - 1, db) - new Date(ya, ma - 1, da);
+            });
+
+            const formattedData = dataToExport.map(item => ({
+                "Data Compra": item.date,
+                "Descrição": item.description,
+                "Categoria": item.category,
+                "Valor": item.amount,
+                "Tipo": item.amount < 0 ? "Reembolso/Crédito" : "Despesa", // Correção de Sinal
+                "Método": item.paymentMethod === 'debit' ? "Débito/Pix" : "Crédito/Fatura",
+                "Mês Ref.": item.billMonth,
+                "Parcelado?": item.description.includes("/") ? "Sim" : "Não"
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(formattedData);
+            const wscols = [
+                {wch: 12}, {wch: 30}, {wch: 15}, {wch: 10}, {wch: 15}, {wch: 15}, {wch: 10}, {wch: 8}
+            ];
+            ws['!cols'] = wscols;
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Extrato");
+            XLSX.writeFile(wb, fileName);
+        });
+    }
+
+    // --- BUSCA RÁPIDA (NOVO) ---
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            const items = document.querySelectorAll('.tx-item');
+            items.forEach(item => {
+                const desc = item.querySelector('.tx-desc').innerText.toLowerCase();
+                const cat = item.querySelector('.tx-cat-label').innerText.toLowerCase();
+                if(desc.includes(term) || cat.includes(term)) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    // --- MODO PRIVACIDADE (NOVO) ---
+    const btnPrivacy = document.getElementById('btn-privacy');
+    if (btnPrivacy) {
+        btnPrivacy.addEventListener('click', () => {
+            vibrate();
+            document.body.classList.toggle('blur-values');
+            const icon = btnPrivacy.querySelector('i');
+            if(document.body.classList.contains('blur-values')){
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
         });
     }
 
@@ -207,6 +234,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('view-month').addEventListener('change', (e) => {
         appState.currentViewMonth = e.target.value;
         filterAndRender();
+        // Limpa busca ao trocar mês
+        if(searchInput) { searchInput.value = ''; }
     });
 
     const budgetInput = document.getElementById('month-budget');
@@ -300,7 +329,6 @@ function setupModal(modalId, openBtnId, closeBtnId, openCallback) {
 // 4. MONITOR DE AUTENTICAÇÃO
 onAuthStateChanged(auth, (user) => {
     if (user) {
-        // Logado
         appState.user = user;
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app-screen').style.display = 'block';
@@ -311,7 +339,6 @@ onAuthStateChanged(auth, (user) => {
             hideLoading(); 
         });
     } else {
-        // Deslogado
         appState.user = null;
         document.getElementById('login-screen').style.display = 'flex';
         document.getElementById('app-screen').style.display = 'none';
@@ -466,6 +493,8 @@ async function handleFileUpload(file) {
                     appState.categoryRules[cat] = [];
                     if(!appState.categories.includes(cat)) appState.categories.push(cat);
                 }
+                // FORÇA CRÉDITO PARA IMPORTAÇÕES
+                tx.paymentMethod = 'credit'; 
             });
 
             if (previewData.learnedCount > 0) {
@@ -544,6 +573,10 @@ function saveManualTransaction() {
     const dateInvStr = document.getElementById('manual-invoice-date').value;
     const cat = document.getElementById('manual-cat').value;
     const type = document.querySelector('input[name="tx-type"]:checked').value;
+    
+    // Captura método (Novo)
+    const payMethod = document.querySelector('input[name="pay-method"]:checked').value;
+
     const isInstallment = document.getElementById('is-installment') ? document.getElementById('is-installment').checked : false;
     const totalInstallments = parseInt(document.getElementById('installments-count').value) || 2;
 
@@ -562,7 +595,17 @@ function saveManualTransaction() {
             const formattedDateInv = `${String(dI).padStart(2,'0')}.${String(mI).padStart(2,'0')}.${yI}`;
             const billMonth = `${yI}-${String(mI).padStart(2,'0')}`;
             if (appState.transactions[index].category !== cat) learnRule(desc, cat);
-            appState.transactions[index] = { ...appState.transactions[index], date: formattedDateBuy, invoiceDate: formattedDateInv, billMonth: billMonth, description: desc, amount: amount, category: cat };
+            
+            appState.transactions[index] = { 
+                ...appState.transactions[index], 
+                date: formattedDateBuy, 
+                invoiceDate: formattedDateInv, 
+                billMonth: billMonth, 
+                description: desc, 
+                amount: amount, 
+                category: cat,
+                paymentMethod: payMethod // Salva o método
+            };
         }
     } else {
         learnRule(desc, cat);
@@ -576,7 +619,18 @@ function saveManualTransaction() {
             const billMonth = `${curY}-${curM}`;
             let finalDesc = desc;
             if (isInstallment) finalDesc = `${desc} (${i + 1}/${totalInstallments})`;
-            appState.transactions.push({ id: "MAN_" + Date.now() + "_" + i, date: formattedDateBuy, invoiceDate: formattedDateInv, billMonth: billMonth, description: finalDesc, amount: amount, category: cat, isBillPayment: false });
+            
+            appState.transactions.push({ 
+                id: "MAN_" + Date.now() + "_" + i, 
+                date: formattedDateBuy, 
+                invoiceDate: formattedDateInv, 
+                billMonth: billMonth, 
+                description: finalDesc, 
+                amount: amount, 
+                category: cat, 
+                paymentMethod: payMethod, // Salva o método
+                isBillPayment: false 
+            });
         }
         if (isInstallment) alert(`${loops} parcelas geradas.`);
     }
@@ -629,6 +683,12 @@ function openManualModal(txToEdit = null) {
         }
         document.getElementById('manual-cat').value = txToEdit.category;
         document.querySelector(`input[name="tx-type"][value="${txToEdit.amount < 0 ? 'credit' : 'debit'}"]`).checked = true;
+        
+        // Carrega Método
+        const method = txToEdit.paymentMethod || 'credit';
+        const radio = document.querySelector(`input[name="pay-method"][value="${method}"]`);
+        if(radio) radio.checked = true;
+
         if(document.getElementById('btn-delete-manual')) document.getElementById('btn-delete-manual').style.display = 'block';
     } else {
         document.getElementById('manual-modal-title').innerText = "Novo";
@@ -639,6 +699,10 @@ function openManualModal(txToEdit = null) {
         document.getElementById('manual-date').value = today;
         document.getElementById('manual-invoice-date').value = today;
         document.querySelector('input[name="tx-type"][value="debit"]').checked = true;
+        
+        // Reseta para Crédito
+        document.querySelector('input[name="pay-method"][value="credit"]').checked = true;
+
         if(document.getElementById('btn-delete-manual')) document.getElementById('btn-delete-manual').style.display = 'none';
     }
 }
