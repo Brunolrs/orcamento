@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
     <div id="loading-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:var(--ios-bg); z-index:9999; display:flex; justify-content:center; align-items:center; flex-direction:column;">
@@ -103,6 +104,9 @@
                     <div class="row-2">
                         <button id="btn-export-backup" class="btn-block" style="background: #FF9500; color: white;">
                             <i class="fa-solid fa-download"></i> Baixar Backup
+                        </button>
+                        <button id="btn-export-excel" class="btn-block" style="background: #1D6F42; color: white; margin-top: 10px;">
+                            <i class="fa-solid fa-file-excel"></i> Baixar Relatório (Excel)
                         </button>
                         <label for="restore-input" class="btn-block" style="background: #333; color: white; text-align: center; cursor: pointer;">
                             <i class="fa-solid fa-upload"></i> Restaurar

@@ -100,6 +100,76 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+   // --- EXPORTAR PARA EXCEL (COM FILTRO DE MÊS) ---
+    const btnExcel = document.getElementById('btn-export-excel');
+    if (btnExcel) {
+        btnExcel.addEventListener('click', () => {
+            vibrate();
+
+            const currentMonth = appState.currentViewMonth;
+            let dataToExport = [];
+            let fileName = "";
+
+            // 1. Filtra os dados baseados na visualização atual
+            if (!currentMonth || currentMonth === "ALL") {
+                // Se estiver na "Visão Geral", baixa TUDO
+                dataToExport = [...appState.transactions];
+                fileName = `Relatorio_Geral_${new Date().toISOString().split('T')[0]}.xlsx`;
+            } else {
+                // Se tiver um mês selecionado, baixa SÓ AQUELE MÊS
+                dataToExport = appState.transactions.filter(t => t.billMonth === currentMonth);
+                fileName = `Extrato_${currentMonth}.xlsx`;
+            }
+
+            if (dataToExport.length === 0) {
+                alert("Não há transações neste mês para exportar.");
+                return;
+            }
+
+            // 2. Ordena por data (mais recente primeiro)
+            dataToExport.sort((a, b) => {
+                const [da, ma, ya] = a.date.split('.');
+                const [db, mb, yb] = b.date.split('.');
+                return new Date(yb, mb - 1, db) - new Date(ya, ma - 1, da);
+            });
+
+            // 3. Formata as colunas para o Excel
+            const formattedData = dataToExport.map(item => ({
+                "Data Compra": item.date,
+                "Descrição": item.description,
+                "Categoria": item.category,
+                "Valor": item.amount, 
+                // AQUI ESTAVA O ERRO:
+                // Se for menor que 0 (negativo) -> É Reembolso/Crédito
+                // Se for maior que 0 (positivo) -> É Despesa
+                "Tipo": item.amount < 0 ? "Reembolso/Crédito" : "Despesa",
+                "Mês Ref.": item.billMonth,
+                "Parcelado?": item.description.includes("/") ? "Sim" : "Não"
+            }));
+
+            // 4. Gera a Planilha
+            const ws = XLSX.utils.json_to_sheet(formattedData);
+
+            // Ajuste visual das colunas
+            const wscols = [
+                {wch: 12}, // Data
+                {wch: 30}, // Descrição
+                {wch: 15}, // Categoria
+                {wch: 10}, // Valor
+                {wch: 10}, // Tipo
+                {wch: 10}, // Mês
+                {wch: 8}   // Parcelado
+            ];
+            ws['!cols'] = wscols;
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Extrato");
+
+            // 5. Download
+            XLSX.writeFile(wb, fileName);
+        });
+    }
+
     // 2. Importar (Restaurar)
     const inputRestore = document.getElementById('restore-input');
     if (inputRestore) {
