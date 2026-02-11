@@ -1,0 +1,43 @@
+/* ==========================================================================
+   MODO ESCURO (DARK MODE)
+   ========================================================================== */
+
+body.dark-mode {
+    --ios-bg: #000000;         /* Fundo preto absoluto */
+    --ios-card: #1C1C1E;       /* Cinza escuro para cards */
+    --ios-text: #FFFFFF;       /* Texto branco */
+    --ios-text-sec: #8E8E93;   /* Texto secundário */
+    --input-bg: #2C2C2E;       /* Fundo de inputs mais claro que o card */
+    --border-color: #38383A;   /* Bordas sutis */
+}
+
+/* Correção de botões redondos no Dark Mode */
+body.dark-mode .btn-icon-header {
+    background-color: #2C2C2E; 
+    color: #0A84FF;
+}
+body.dark-mode .btn-icon-header:hover {
+    background-color: #3A3A3C;
+}
+
+/* Correção de Inputs para não ficarem brancos */
+body.dark-mode .budget-input {
+    color: #0A84FF;
+}
+
+/* Ajustes de Bordas e Cores em Listas */
+body.dark-mode .dropdown-item:active {
+    background-color: #2C2C2E;
+}
+
+/* Ajuste específico para gráfico de progresso em fundo escuro */
+body.dark-mode .cat-progress-bg {
+    background: #2C2C2E;
+}
+
+/* Ajuste do Card de Destaque (A Pagar) */
+body.dark-mode .highlight-card {
+    background-color: #1C1C1E;
+    border: 1px solid #333;
+    color: #FFFFFF;
+}

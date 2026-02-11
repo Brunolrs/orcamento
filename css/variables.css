@@ -1,0 +1,52 @@
+/* ==========================================================================
+   VARIÁVEIS GLOBAIS E RESET
+   ========================================================================== */
+:root {
+    /* Paleta iOS (Light Mode Padrão) */
+    --ios-bg: #F2F2F7;
+    --ios-card: #FFFFFF;
+    --ios-text: #000000;
+    --ios-text-sec: #8E8E93;
+    --ios-blue: #007AFF;
+    --ios-green: #34C759;
+    --ios-red: #FF3B30;
+    
+    /* Variáveis de Componentes */
+    --input-bg: #F9F9F9;
+    --border-color: #E5E5EA;
+
+    /* Tipografia e Layout */
+    --ios-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --radius-l: 24px;
+    --radius-m: 16px;
+    --radius-s: 8px;
+    --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    font-family: var(--ios-font);
+    background-color: var(--ios-bg);
+    color: var(--ios-text);
+    min-height: 100vh;
+    padding-bottom: calc(120px + env(safe-area-inset-bottom)); /* Espaço para FAB e barra do iPhone */
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Animações Globais */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}

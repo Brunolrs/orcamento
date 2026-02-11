@@ -2,12 +2,13 @@
  * MAIN - PONTO DE ENTRADA E CONTROLE
  * Versão: V45 (Dark Mode, Excel, Search, CRUD Completo)
  */
-import { auth, provider, signInWithPopup, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase, resetAllData, restoreFromBackup } from './firebase.js';
-import { appState } from './state.js';
-import { initViewSelector, filterAndRender, renderIncomeList, renderCategoryManager, renderEtlPreview } from './ui.js';
+// Ajuste os caminhos para as novas pastas
+import { auth, provider, signInWithPopup, signOut, onAuthStateChanged, startRealtimeListener, saveToFirebase, resetAllData, restoreFromBackup } from './services/firebase.js';
+import { appState } from './state.js'; // state.js costuma ficar na raiz de js/ ou utils
+import { initViewSelector, filterAndRender, renderIncomeList, renderCategoryManager, renderEtlPreview } from './ui/index.js'; // Aponta para o index da pasta UI
 import { lockBodyScroll, unlockBodyScroll, vibrate, extractKeyword } from './utils.js';
-import { InvoiceETL } from './etl.js';
-import { DEFAULT_RULES } from './config.js';
+import { InvoiceETL } from './services/etl.js';
+import { DEFAULT_RULES } from './config.js';;
 
 // --- CONTROLE DE UI (LOADING) ---
 function showLoading() {

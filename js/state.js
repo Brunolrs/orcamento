@@ -9,5 +9,6 @@ export let appState = {
     categoryColors: {},
     currentViewMonth: null,
     user: null,
-    isEditMode: false
+    isEditMode: false,
+    selectedCategory: null // <--- Nova propriedade para o filtro
 };

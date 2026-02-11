@@ -1,7 +1,8 @@
 /**
  * ETL Processor - Com IA e Aprendizado Dinâmico
  */
-import { detectCategory, extractKeyword } from './utils.js';
+// Ajuste de caminho: utils está na pasta pai (js/), ai.js está na mesma pasta (services/)
+import { detectCategory, extractKeyword } from '../utils.js';
 import { categorizeWithAI } from './ai.js';
 
 function addMonthsToDate(dateStr, monthsToAdd) {
@@ -78,7 +79,7 @@ export class InvoiceETL {
     learn(currentRules) {
         const rulesDelta = {};
         for (const item of this.extractedData) {
-            // Aprende apenas de seções confiáveis do banco (ex: Restaurantes)
+            // Aprende apenas de seções confiáveis
             if (["Detectar", "Pagamentos", "Outros", "Outros lançamentos"].includes(item.section)) continue;
             
             const targetCat = item.section;

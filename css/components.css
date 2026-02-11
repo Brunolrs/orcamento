@@ -1,0 +1,312 @@
+/* ==========================================================================
+   COMPONENTES (BOTÕES, INPUTS, CARDS)
+   ========================================================================== */
+
+/* --- Botões --- */
+.btn-block {
+    width: 100%;
+    padding: 15px;
+    border-radius: 12px;
+    border: none;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 50px;
+}
+
+.btn-primary {
+    background: var(--ios-blue);
+    color: white;
+}
+
+.btn-small-blue {
+    background: var(--ios-blue);
+    color: white;
+    border: none;
+    padding: 0 20px;
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+.btn-icon-header {
+    background: var(--ios-bg);
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: var(--ios-blue);
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+.btn-icon-header:hover { background: var(--border-color); }
+
+.btn-icon-action {
+    background: var(--border-color);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ios-text-sec);
+}
+
+.btn-toggle-edit {
+    background: none;
+    border: none;
+    color: var(--ios-blue);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: 0.2s;
+}
+.btn-toggle-edit.active { background: var(--ios-blue); color: white; }
+
+.btn-row-delete {
+    background: #FFE5E5;
+    color: var(--ios-red);
+    border: none;
+    border-radius: 12px;
+    width: 44px;
+    height: 44px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.btn-finish-edit {
+    background-color: var(--ios-green);
+    color: white;
+    width: 100%;
+    padding: 15px;
+    border-radius: 12px;
+    border: none;
+    font-size: 16px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(52, 199, 89, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 28px;
+    cursor: pointer;
+    color: #888;
+    padding: 10px;
+}
+
+/* Botão Flutuante (FAB) */
+.fab-add {
+    position: fixed;
+    bottom: calc(30px + env(safe-area-inset-bottom));
+    right: 20px;
+    background: var(--ios-blue);
+    color: white;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: none;
+    font-size: 28px;
+    box-shadow: 0 8px 20px rgba(0, 122, 255, 0.4);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    transition: transform 0.2s;
+}
+.fab-add:active { transform: scale(0.95); }
+
+/* --- Forms e Inputs --- */
+.form-group { margin-bottom: 15px; }
+
+.form-label {
+    display: block;
+    font-size: 12px;
+    color: var(--ios-text-sec);
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+/* Regra Geral para Inputs */
+.form-input, .form-select, .view-selector {
+    width: auto;
+    padding: 0 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    font-size: 16px !important;
+    height: 48px;
+    background: var(--input-bg);
+    color: var(--ios-text);
+    outline: none;
+}
+.form-input:focus { background: var(--ios-card); border-color: var(--ios-blue); }
+
+/* Regra Específica do Seletor de Mês (CORREÇÃO AQUI) */
+.view-selector {
+    background: var(--ios-bg);
+    border: 1px solid transparent;
+    padding: 8px 12px;
+    font-weight: 600;
+    font-size: 14px;
+    text-align: left;
+    height: 40px;
+    cursor: pointer;
+    width: auto; /* <--- Força a largura automática para não esticar */
+    margin-left: left; /* Empurra para a esquerda no flex container */
+}
+
+.edit-input, .edit-select {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    background: var(--input-bg);
+    padding: 0 10px;
+    border-radius: 12px;
+    font-size: 16px !important;
+    height: 44px;
+    margin-bottom: 4px;
+    font-family: var(--ios-font);
+    color: var(--ios-text);
+}
+.edit-select { color: var(--ios-blue); font-weight: 600; font-size: 14px !important; }
+
+.radio-box {
+    flex: 1;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    padding: 10px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ios-text);
+}
+.radio-box input { margin: 0; }
+
+.keyword-add-input {
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    padding: 8px;
+    font-size: 14px;
+    width: 120px;
+    outline: none;
+    background: transparent;
+    color: var(--ios-text);
+}
+
+/* --- Cards --- */
+.card {
+    background: var(--ios-card);
+    padding: 20px;
+    border-radius: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: background-color 0.3s ease;
+}
+
+.card-label {
+    font-size: 10px;
+    color: var(--ios-text-sec);
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.card-value {
+    font-size: 18px;
+    font-weight: 700;
+    margin-top: 5px;
+    color: var(--ios-text);
+}
+
+.highlight-card {
+    background: #1C1C1E; /* Default escuro elegante para destaque */
+    color: white;
+    margin: 0 20px 20px 20px;
+    padding: 25px;
+    border-radius: 24px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 15px;
+}
+.highlight-card .label { opacity: 0.7; font-size: 11px; text-transform: uppercase; font-weight: 600; margin-bottom: 5px; color: #EBEBF5; }
+.highlight-card .value { font-size: 26px; font-weight: 800; color: #FFFFFF; }
+
+/* --- Dropdowns --- */
+.dropdown-menu {
+    position: absolute;
+    top: 50px;
+    right: 0;
+    background: var(--ios-card);
+    width: 220px;
+    border-radius: var(--radius-m);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,0.05);
+    animation: fadeIn 0.2s ease;
+}
+.dropdown-menu.show { display: flex; }
+
+.dropdown-item {
+    width: 100%;
+    padding: 15px 20px;
+    border: none;
+    background: transparent;
+    text-align: left;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ios-text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+.dropdown-item:last-child { border-bottom: none; }
+.dropdown-item:active { background: var(--ios-bg); }
+.dropdown-divider { height: 1px; background: var(--border-color); margin: 0; }
+
+/* --- Tags e Helpers --- */
+.keyword-tag {
+    background: var(--input-bg);
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--ios-text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--border-color);
+}
+.text-blue { color: var(--ios-blue); }
+.text-red { color: var(--ios-red); }
+.val-refund { color: var(--ios-green); }

@@ -1,8 +1,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { firebaseConfig, DEFAULT_RULES } from './config.js';
-import { appState } from './state.js';
+// Ajuste de caminho: sobe um nível para pegar config e state
+import { firebaseConfig, DEFAULT_RULES } from '../config.js';
+import { appState } from '../state.js';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -41,18 +42,16 @@ export async function resetAllData() {
     } catch (e) { console.error("Erro ao resetar:", e); }
 }
 
-// --- RESTAURAR BACKUP (Nova Função) ---
+// --- RESTAURAR BACKUP ---
 export async function restoreFromBackup(backupData) {
     if (!appState.user) return;
     
-    // Validação básica do arquivo
     if (!backupData.transactions || !backupData.incomeDetails) {
         throw new Error("Arquivo de backup inválido ou incompatível.");
     }
 
     const userDocRef = doc(db, "users", appState.user.uid);
     try {
-        // setDoc substitui o documento inteiro pelo backup
         await setDoc(userDocRef, {
             transactions: backupData.transactions,
             incomeDetails: backupData.incomeDetails,
@@ -79,10 +78,8 @@ export function startRealtimeListener(uid, renderCallback) {
             
             appState.transactions = data.transactions || [];
             
-            // --- LÓGICA DE MIGRAÇÃO (Resgate de Renda Antiga) ---
+            // Lógica de Migração (Renda Antiga)
             let loadedIncomes = data.incomeDetails || {};
-            
-            // Se o formato novo estiver vazio, mas existir o antigo 'monthlyIncomes'
             if (Object.keys(loadedIncomes).length === 0 && data.monthlyIncomes) {
                 console.log("♻️ Convertendo dados antigos de renda...");
                 Object.keys(data.monthlyIncomes).forEach(month => {
@@ -95,13 +92,11 @@ export function startRealtimeListener(uid, renderCallback) {
                         }];
                     }
                 });
-                // Salva a conversão imediatamente
                 appState.incomeDetails = loadedIncomes;
                 saveToFirebase(); 
             } else {
                 appState.incomeDetails = loadedIncomes;
             }
-            // -----------------------------------------------------
 
             appState.monthlyBudgets = data.monthlyBudgets || {};
             appState.categoryColors = data.categoryColors || {};
@@ -112,7 +107,7 @@ export function startRealtimeListener(uid, renderCallback) {
 
             if (!appState.isEditMode && renderCallback) renderCallback();
         } else {
-            // Novo usuário: cria estrutura inicial
+            // Novo usuário
             setDoc(userDocRef, { 
                 transactions: [], 
                 incomeDetails: {}, 

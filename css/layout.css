@@ -1,0 +1,101 @@
+/* ==========================================================================
+   LAYOUT E ESTRUTURA
+   ========================================================================== */
+
+/* Tela de Login */
+#login-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100dvh;
+    background-color: var(--ios-bg);
+    padding: 20px;
+    text-align: center;
+    z-index: 9999;
+}
+
+#btn-login {
+    background: var(--ios-blue);
+    color: white;
+    padding: 16px 32px;
+    border-radius: 12px;
+    border: none;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+    transition: transform 0.2s, background 0.2s;
+}
+#btn-login:active { transform: scale(0.96); background: #0062cc; }
+
+/* Header */
+.header-container {
+    background: var(--ios-card);
+    padding-top: calc(20px + env(safe-area-inset-top));
+    padding-left: 20px;
+    padding-right: 20px;
+    padding-bottom: 25px;
+    border-bottom-left-radius: var(--radius-l);
+    border-bottom-right-radius: var(--radius-l);
+    box-shadow: var(--shadow-soft);
+    margin-bottom: 25px;
+    position: relative;
+    transition: background-color 0.3s ease;
+}
+
+.top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.app-brand {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--ios-blue);
+    letter-spacing: -0.5px;
+}
+
+.settings-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+/* Grids e Wrappers */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    padding: 0 20px;
+    margin-bottom: 20px;
+}
+
+.section-header-wrapper {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
+    padding-right: 20px;
+    margin-bottom: 5px;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+/* Media Queries de Layout */
+@media (max-width: 600px) {
+    .charts-row {
+        flex-direction: column;
+    }
+}

@@ -3,7 +3,7 @@
  */
 import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
 
-// ⚠️ SUBSTITUA PELA SUA CHAVE API DO GOOGLE AI STUDIO
+// ⚠️ Mantenha sua chave API segura
 const API_KEY = "AIzaSyCfIJzICTpP52Oh7USRwAQQH3uWdddWZgA"; 
 
 const genAI = new GoogleGenerativeAI(API_KEY);
@@ -17,7 +17,7 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 export async function categorizeWithAI(descriptions, categories) {
     if (!descriptions || descriptions.length === 0) return {};
 
-    // Remove duplicatas e pega lote de 50 para economizar/otimizar
+    // Otimização: Remove duplicatas e limita lote
     const uniqueDesc = [...new Set(descriptions)].slice(0, 50);
 
     const prompt = `
@@ -37,11 +37,11 @@ export async function categorizeWithAI(descriptions, categories) {
         const result = await model.generateContent(prompt);
         const response = await result.response;
         let text = response.text();
-        // Limpeza de markdown
+        // Limpeza de markdown caso a IA devolva ```json ... ```
         text = text.replace(/```json|```/g, '').trim();
         return JSON.parse(text);
     } catch (error) {
         console.error("Erro na IA:", error);
-        return {}; // Retorna vazio em caso de erro para não travar
+        return {}; // Retorna vazio em caso de erro para não travar o fluxo
     }
 }
