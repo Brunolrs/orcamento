@@ -10,5 +10,6 @@ export let appState = {
     currentViewMonth: null,
     user: null,
     isEditMode: false,
-    selectedCategory: null // <--- Nova propriedade para o filtro
+    selectedCategory: null,
+    sentNotifications: [] // NOVO: Controle de notificações enviadas (resetar ao mudar de mês)
 };

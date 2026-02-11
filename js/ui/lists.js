@@ -1,6 +1,8 @@
 import { appState } from '../state.js';
 import { formatBRL, vibrate } from '../utils.js';
 import { updateCharts, getColorForCategory } from './charts.js';
+// Importa o serviço do Telegram
+import { checkBudgetThreshold, sendTelegramAlert } from '../services/telegram.js';
 
 export function renderListsAndCharts(transactions, currentIncome) {
     const output = document.getElementById('output');
@@ -19,7 +21,7 @@ export function renderListsAndCharts(transactions, currentIncome) {
         return new Date(yb, mb - 1, db) - new Date(ya, ma - 1, da);
     });
 
-    // Cálculos e Agrupamento
+    // Cálculos
     transactions.forEach(t => {
         let cat = appState.categories.includes(t.category) ? t.category : "Outros";
         grouped[cat].push(t);
@@ -37,9 +39,11 @@ export function renderListsAndCharts(transactions, currentIncome) {
 
     // Atualizações Visuais
     updateDashboardCards(gross, refunds, currentIncome, totalCredit, totalDebit);
-    renderBudgetBar(gross);
-    updateCharts(catTotals); // Atualiza gráficos
     
+    // Barra de Orçamento (AQUI ESTÁ A LÓGICA DO TELEGRAM)
+    renderBudgetBar(gross, currentIncome, totalCredit, totalDebit);
+    
+    updateCharts(catTotals); 
     renderCategorySummary(catTotals, gross);
     renderTransactionList(grouped, catTotals, output);
 }
@@ -69,13 +73,20 @@ function updateDashboardCards(gross, refunds, income, credit, debit) {
     if(debitDisplay) debitDisplay.innerText = formatBRL(debit);
 }
 
-function renderBudgetBar(gross) {
+function renderBudgetBar(gross, income, totalCredit, totalDebit) {
     const view = appState.currentViewMonth;
     const budgetEl = document.getElementById('budget-remaining');
     if (!budgetEl) return;
 
     const currentBudget = (view !== "ALL" && appState.monthlyBudgets[view]) ? appState.monthlyBudgets[view] : 0;
     budgetEl.innerHTML = '';
+
+    // Reseta notificações se o usuário mudou de mês na visualização
+    // (Para garantir que ele receba alertas do mês que está olhando se editar algo)
+    if (appState.lastCheckedMonth !== view) {
+        appState.sentNotifications = [];
+        appState.lastCheckedMonth = view;
+    }
 
     if (view === "ALL" || currentBudget === 0) {
         budgetEl.innerText = "---";
@@ -84,6 +95,24 @@ function renderBudgetBar(gross) {
         const budgetRemaining = currentBudget - gross;
         const percent = Math.min((gross / currentBudget) * 100, 100);
         let barColor = percent > 90 ? '#FF3B30' : percent > 75 ? '#FFCC00' : '#4CD964';
+
+        // --- AUTOMAÇÃO TELEGRAM (SEM CONFIRMAÇÃO) ---
+        const alertLevel = checkBudgetThreshold(percent);
+        
+        // Se atingiu um nível crítico E ainda não enviou aviso hoje/sessão
+        if (alertLevel && !appState.sentNotifications.includes(alertLevel)) {
+            
+            // 1. Marca como enviado IMEDIATAMENTE (evita loop infinito de envios)
+            appState.sentNotifications.push(alertLevel);
+            
+            // 2. Dispara o envio silencioso
+            sendTelegramAlert(alertLevel, currentBudget, gross, view, income, totalCredit, totalDebit);
+            
+            // 3. Feedback visual no console e vibração
+            console.log(`🚀 Enviando alerta de ${alertLevel}% para o Telegram...`);
+            vibrate(200); 
+        }
+        // ----------------------------------------------
 
         budgetEl.innerHTML = `
             <div style="font-size: 18px; font-weight: 800; color: ${budgetRemaining >= 0 ? 'var(--ios-green)' : 'var(--ios-red)'}">${formatBRL(budgetRemaining)}</div>
@@ -105,7 +134,6 @@ function renderCategorySummary(catTotals, totalGross) {
         const percent = totalGross > 0 ? (val / totalGross) * 100 : 0;
         const color = getColorForCategory(cat);
         
-        // --- LÓGICA DE FILTRO VISUAL ---
         const isSelected = appState.selectedCategory === cat;
         const opacity = (appState.selectedCategory && !isSelected) ? '0.3' : '1';
         const border = isSelected ? `2px solid ${color}` : 'none';
@@ -123,7 +151,6 @@ function renderCategorySummary(catTotals, totalGross) {
             <div class="cat-progress-bg"><div class="cat-progress-bar" style="width: ${percent}%; background-color: ${color};"></div></div>
         `;
         
-        // Clique para filtrar
         div.onclick = () => {
             vibrate(30);
             appState.selectedCategory = isSelected ? null : cat;
@@ -137,10 +164,10 @@ function renderCategorySummary(catTotals, totalGross) {
 function renderTransactionList(grouped, catTotals, output) {
     if(!output) return;
     
-    // Header do Filtro
     if (appState.selectedCategory) {
         const filterHeader = document.createElement('div');
         filterHeader.style.cssText = "padding: 12px 20px; background: var(--input-bg); margin-bottom: 20px; border-radius: 16px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--ios-blue); animation: fadeIn 0.3s ease;";
+        
         filterHeader.innerHTML = `
             <span style="font-weight: 600; color: var(--ios-blue); font-size: 14px;">
                 <i class="fa-solid fa-filter"></i> Filtrado por: <strong>${appState.selectedCategory}</strong>
@@ -157,7 +184,6 @@ function renderTransactionList(grouped, catTotals, output) {
     }
 
     Object.keys(grouped).sort().forEach(cat => {
-        // Filtra a categoria se houver seleção
         if (appState.selectedCategory && appState.selectedCategory !== cat) return;
 
         const items = grouped[cat];
@@ -224,7 +250,6 @@ function renderTransactionList(grouped, catTotals, output) {
     }
 }
 
-// --- ESTA É A FUNÇÃO QUE FALTAVA ---
 export function renderIncomeList() {
     const month = appState.currentViewMonth;
     const list = appState.incomeDetails[month] || [];
