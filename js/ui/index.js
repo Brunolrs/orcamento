@@ -4,13 +4,22 @@
 import { appState } from '../state.js';
 import { formatMonthLabel } from '../utils.js';
 
-// Importa dos sub-módulos
+// Imports dos submódulos
 import { renderListsAndCharts, renderIncomeList } from './lists.js';
 import { renderCategoryManager, renderEtlPreview } from './modals.js';
 import { initViewSelector } from './selectors.js';
+// IMPORT CRÍTICO QUE FALTAVA:
+import { renderConferenceModal } from './conference.js'; 
 
-// Re-exporta para o main.js usar
-export { renderListsAndCharts, renderIncomeList, renderCategoryManager, renderEtlPreview, initViewSelector };
+// Exportações para o main.js
+export { 
+    renderListsAndCharts, 
+    renderIncomeList, 
+    renderCategoryManager, 
+    renderEtlPreview, 
+    initViewSelector,
+    renderConferenceModal // <--- Agora está sendo exportado corretamente
+};
 
 // --- ORQUESTRADOR PRINCIPAL DA UI ---
 export function filterAndRender() {
@@ -29,13 +38,15 @@ export function filterAndRender() {
     labelText = `Renda de ${formatMonthLabel(view).split(' ')[0]}`;
   }
 
-  // Atualiza Inputs Básicos (Renda e Label)
   const inputEl = document.getElementById('monthly-income');
-  inputEl.value = currentIncome > 0 ? currentIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "0,00";
-  document.getElementById('income-label-text').innerText = labelText;
-  document.getElementById('btn-manage-income').style.display = (view === "ALL") ? "none" : "flex";
+  if(inputEl) inputEl.value = currentIncome > 0 ? currentIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : "0,00";
+  
+  const labelEl = document.getElementById('income-label-text');
+  if(labelEl) labelEl.innerText = labelText;
+  
+  const manageBtn = document.getElementById('btn-manage-income');
+  if(manageBtn) manageBtn.style.display = (view === "ALL") ? "none" : "flex";
 
-  // Atualiza Input de Orçamento
   const budgetInput = document.getElementById('month-budget');
   if (budgetInput) {
     if (view === "ALL") {
@@ -48,6 +59,5 @@ export function filterAndRender() {
     }
   }
 
-  // Renderiza Gráficos e Listas (módulo lists.js)
   renderListsAndCharts(txs, currentIncome);
 }
