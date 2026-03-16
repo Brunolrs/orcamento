@@ -72,7 +72,7 @@ export async function restoreFromBackup(backupData) {
 export function startRealtimeListener(uid, renderCallback) {
     const userDocRef = doc(db, "users", uid);
     
-    onSnapshot(userDocRef, (docSnap) => {
+    return onSnapshot(userDocRef, (docSnap) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
             
@@ -115,6 +115,14 @@ export function startRealtimeListener(uid, renderCallback) {
                 categoryRules: JSON.parse(JSON.stringify(DEFAULT_RULES)), 
                 categoryColors: {} 
             });
+        }
+    }, (error) => {
+        // Captura permission-denied e outros erros do Firestore silenciosamente.
+        // Isso ocorre normalmente durante a transição de autenticação.
+        if (error.code === 'permission-denied') {
+            console.warn("⚠️ Firestore: acesso negado temporariamente. Aguardando autenticação...");
+        } else {
+            console.error("Erro no listener do Firestore:", error);
         }
     });
 }

@@ -349,7 +349,28 @@ function addNewCategory() {
 
 // --- EVENT LISTENERS ---
 document.addEventListener('DOMContentLoaded', () => {
-    
+
+    // --- MÁSCARA DE MOEDA (Fix iOS: troca type=number por text+inputmode=decimal) ---
+    function applyMoneyMask(inputId) {
+        const el = document.getElementById(inputId);
+        if (!el) return;
+        el.setAttribute('type', 'text');
+        el.setAttribute('inputmode', 'decimal');
+        el.setAttribute('autocomplete', 'off');
+
+        el.addEventListener('input', () => {
+            let raw = el.value.replace(/[^\d,]/g, '');
+            const parts = raw.split(',');
+            if (parts.length > 2) raw = parts[0] + ',' + parts.slice(1).join('');
+            if (parts[1] && parts[1].length > 2) raw = parts[0] + ',' + parts[1].substring(0, 2);
+            el.value = raw;
+        });
+    }
+
+    applyMoneyMask('manual-val');
+    applyMoneyMask('inc-val');
+    // -------------------------------------------------------------------
+
     // Verifica automação ao carregar (SMS/iOS)
     checkUrlAutomation();
 
